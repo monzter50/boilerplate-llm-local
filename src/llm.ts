@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { config } from "./config.js";
+import { resolveParams } from "./harness.js";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -107,11 +108,14 @@ export async function chat(
   messages: ChatMessage[],
   options: ChatOptions = {},
 ): Promise<ChatResult> {
+  const model = options.model ?? (await getModel());
+  const params = resolveParams(model, options);
+
   const completion = await client.chat.completions.create({
-    model: options.model ?? (await getModel()),
+    model,
     messages,
-    temperature: options.temperature ?? config.temperature,
-    max_tokens: options.maxTokens ?? config.maxTokens,
+    temperature: params.temperature,
+    max_tokens: params.maxTokens,
     stream: false,
   });
 
@@ -136,11 +140,14 @@ export async function* chatStream(
   messages: ChatMessage[],
   options: ChatOptions = {},
 ): AsyncGenerator<ChatChunk> {
+  const model = options.model ?? (await getModel());
+  const params = resolveParams(model, options);
+
   const stream = await client.chat.completions.create({
-    model: options.model ?? (await getModel()),
+    model,
     messages,
-    temperature: options.temperature ?? config.temperature,
-    max_tokens: options.maxTokens ?? config.maxTokens,
+    temperature: params.temperature,
+    max_tokens: params.maxTokens,
     stream: true,
   });
 

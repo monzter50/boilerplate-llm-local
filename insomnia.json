@@ -12,7 +12,6 @@
       "description": "API HTTP local del boilerplate (Express) y acceso directo al servidor OpenAI-compatible de LM Studio.",
       "scope": "collection"
     },
-
     {
       "_id": "env_base",
       "_type": "environment",
@@ -28,7 +27,15 @@
         "system_prompt": "You are a helpful, concise assistant. Answer in the user's language."
       },
       "dataPropertyOrder": {
-        "&": ["base_url", "lmstudio_url", "lmstudio_api_key", "model", "temperature", "max_tokens", "system_prompt"]
+        "&": [
+          "base_url",
+          "lmstudio_url",
+          "lmstudio_api_key",
+          "model",
+          "temperature",
+          "max_tokens",
+          "system_prompt"
+        ]
       },
       "color": null,
       "isPrivate": false,
@@ -43,7 +50,12 @@
         "base_url": "http://localhost:3000",
         "lmstudio_url": "http://localhost:1234/v1"
       },
-      "dataPropertyOrder": { "&": ["base_url", "lmstudio_url"] },
+      "dataPropertyOrder": {
+        "&": [
+          "base_url",
+          "lmstudio_url"
+        ]
+      },
       "color": "#7d69cb",
       "isPrivate": false,
       "metaSortKey": 2
@@ -57,12 +69,16 @@
         "base_url": "http://192.168.1.100:3000",
         "lmstudio_url": "http://192.168.1.100:1234/v1"
       },
-      "dataPropertyOrder": { "&": ["base_url", "lmstudio_url"] },
+      "dataPropertyOrder": {
+        "&": [
+          "base_url",
+          "lmstudio_url"
+        ]
+      },
       "color": "#4dbf7a",
       "isPrivate": false,
       "metaSortKey": 3
     },
-
     {
       "_id": "fld_api",
       "_type": "request_group",
@@ -83,7 +99,6 @@
       "environmentPropertyOrder": null,
       "metaSortKey": -50
     },
-
     {
       "_id": "req_health",
       "_type": "request",
@@ -125,6 +140,54 @@
       "metaSortKey": -900
     },
     {
+      "_id": "req_prompts",
+      "_type": "request",
+      "parentId": "fld_api",
+      "name": "GET /prompts",
+      "description": "Ids de los prompts disponibles en prompts/*.md. Se leen al arrancar: si añades uno, reinicia el proceso.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/prompts",
+      "body": {},
+      "headers": [],
+      "metaSortKey": -850,
+      "parameters": [],
+      "authentication": {},
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_chat_promptid",
+      "_type": "request",
+      "parentId": "fld_api",
+      "name": "POST /chat — promptId",
+      "description": "Selecciona un prompt de prompts/*.md por id. Gana sobre SYSTEM_PROMPT del .env, pero pierde frente al campo 'system' y frente a un turno 'system' dentro de 'messages'. Un id inexistente devuelve 400.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/chat",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"message\": \"El gato duerme en el tejado.\",\n  \"promptId\": \"translator\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "metaSortKey": -750,
+      "parameters": [],
+      "authentication": {},
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
       "_id": "req_chat_simple",
       "_type": "request",
       "parentId": "fld_api",
@@ -137,7 +200,10 @@
         "text": "{\n  \"message\": \"Explícame qué es un LLM en dos frases.\"\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
       ],
       "parameters": [],
       "authentication": {},
@@ -162,7 +228,10 @@
         "text": "{\n  \"message\": \"Dame tres ideas para nombrar un proyecto de IA local.\",\n  \"system\": \"{{ _.system_prompt }}\",\n  \"temperature\": {{ _.temperature }},\n  \"maxTokens\": {{ _.max_tokens }}\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
       ],
       "parameters": [],
       "authentication": {},
@@ -187,7 +256,10 @@
         "text": "{\n  \"messages\": [\n    { \"role\": \"system\", \"content\": \"Eres un asistente conciso. Responde en español.\" },\n    { \"role\": \"user\", \"content\": \"¿Cuál es la capital de Francia?\" },\n    { \"role\": \"assistant\", \"content\": \"París.\" },\n    { \"role\": \"user\", \"content\": \"¿Y su población aproximada?\" }\n  ],\n  \"temperature\": 0.3\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
       ],
       "parameters": [],
       "authentication": {},
@@ -212,7 +284,10 @@
         "text": "{\n  \"temperature\": 0.7\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
       ],
       "parameters": [],
       "authentication": {},
@@ -237,8 +312,14 @@
         "text": "{\n  \"message\": \"Cuenta del 1 al 10 separando por comas.\",\n  \"maxTokens\": 512\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Accept", "value": "text/event-stream" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Accept",
+          "value": "text/event-stream"
+        }
       ],
       "parameters": [],
       "authentication": {},
@@ -250,7 +331,6 @@
       "settingFollowRedirects": "global",
       "metaSortKey": -400
     },
-
     {
       "_id": "req_lm_models",
       "_type": "request",
@@ -261,7 +341,10 @@
       "url": "{{ _.lmstudio_url }}/models",
       "body": {},
       "headers": [
-        { "name": "Authorization", "value": "Bearer {{ _.lmstudio_api_key }}" }
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.lmstudio_api_key }}"
+        }
       ],
       "parameters": [],
       "authentication": {},
@@ -286,8 +369,14 @@
         "text": "{\n  \"model\": \"{{ _.model }}\",\n  \"messages\": [\n    { \"role\": \"system\", \"content\": \"You are a helpful, concise assistant.\" },\n    { \"role\": \"user\", \"content\": \"Hola, ¿funcionas?\" }\n  ],\n  \"temperature\": {{ _.temperature }},\n  \"max_tokens\": {{ _.max_tokens }},\n  \"stream\": false\n}"
       },
       "headers": [
-        { "name": "Content-Type", "value": "application/json" },
-        { "name": "Authorization", "value": "Bearer {{ _.lmstudio_api_key }}" }
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.lmstudio_api_key }}"
+        }
       ],
       "parameters": [],
       "authentication": {},

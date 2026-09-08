@@ -9,6 +9,7 @@
   },
   "scripts": {
     "cli": "tsx src/cli.ts",
+    "dev": "tsx watch src/server.ts",
     "server": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
