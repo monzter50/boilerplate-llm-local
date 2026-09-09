@@ -13,6 +13,8 @@ const HELP = `
 Commands:
   /prompt        list the available prompts
   /prompt <id>   switch to a prompt and clear the history
+  /model         show the active model
+  /model refresh re-read it from LM Studio, after swapping it there
   /reset         clear the conversation history
   /reasoning     toggle printing the model's chain of thought
   /history       print the current history
@@ -75,7 +77,9 @@ async function main() {
 
       if (!hasPrompt(id)) {
         console.log(
-          dim(`unknown prompt '${id}' — available: ${listPrompts().join(", ")}\n`),
+          dim(
+            `unknown prompt '${id}' — available: ${listPrompts().join(", ")}\n`,
+          ),
         );
         continue;
       }
@@ -83,6 +87,28 @@ async function main() {
       promptId = id;
       turns.length = 0;
       console.log(dim(`prompt set to '${id}', history cleared\n`));
+      continue;
+    }
+
+    if (input === "/model" || input.startsWith("/model ")) {
+      const argument = input.slice("/model".length).trim();
+
+      if (argument && argument !== "refresh") {
+        console.log(dim(`usage: /model [refresh]\n`));
+        continue;
+      }
+
+      if (argument === "refresh") {
+        try {
+          model = await getModel({ refresh: true });
+          console.log(dim(`model refreshed: ${model}\n`));
+        } catch (error) {
+          console.error(`\n${(error as Error).message}\n`);
+        }
+        continue;
+      }
+
+      console.log(dim(`model: ${model} (${familyOf(model).name})\n`));
       continue;
     }
 

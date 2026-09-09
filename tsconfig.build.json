@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  // Tests are type-checked by `pnpm typecheck`, which uses the base config, but
+  // they must not be emitted into dist/.
+  "exclude": ["src/**/*.test.ts"]
+}

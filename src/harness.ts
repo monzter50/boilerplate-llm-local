@@ -145,7 +145,9 @@ export function resolveParams(
 ): GenerationParams {
   return {
     temperature:
-      overrides.temperature ?? config.temperature ?? familyOf(model).temperature,
+      overrides.temperature ??
+      config.temperature ??
+      familyOf(model).temperature,
     maxTokens: overrides.maxTokens ?? config.maxTokens,
   };
 }

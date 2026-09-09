@@ -140,6 +140,26 @@
       "metaSortKey": -900
     },
     {
+      "_id": "req_models_refresh",
+      "_type": "request",
+      "parentId": "fld_api",
+      "name": "POST /models/refresh",
+      "description": "Vuelve a leer el modelo activo de LM Studio. Úsalo cuando cambies de modelo allí y no quieras reiniciar el proceso: el id resuelto se cachea al arrancar.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/models/refresh",
+      "body": {},
+      "headers": [],
+      "parameters": [],
+      "authentication": {},
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "metaSortKey": -870
+    },
+    {
       "_id": "req_prompts",
       "_type": "request",
       "parentId": "fld_api",

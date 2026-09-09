@@ -34,17 +34,24 @@ pnpm dev       # HTTP API on http://localhost:3000 (watch mode)
 > exits with code 0 without printing anything. Use `pnpm dev`, or
 > `pnpm run server`, which forces the script.
 
-CLI commands: `/prompt [id]`, `/reset`, `/reasoning`, `/history`, `/help`, `/exit`.
+CLI commands: `/prompt [id]`, `/model [refresh]`, `/reset`, `/reasoning`,
+`/history`, `/help`, `/exit`.
+
+```bash
+pnpm test        # vitest, passes with LM Studio closed
+pnpm lint        # eslint
+pnpm format      # prettier
+```
 
 ## API
 
-| Method | Route          | Purpose                                  |
-| ------ | -------------- | ---------------------------------------- |
-| GET    | `/health`      | Reachability of LM Studio and the model  |
-| GET    | `/models`      | Models loaded in LM Studio               |
-| GET    | `/prompts`     | System prompts available in `prompts/`   |
-| POST   | `/chat`        | Full response as JSON                    |
-| POST   | `/chat/stream` | Token-by-token response over SSE         |
+| Method | Route          | Purpose                                 |
+| ------ | -------------- | --------------------------------------- |
+| GET    | `/health`      | Reachability of LM Studio and the model |
+| GET    | `/models`      | Models loaded in LM Studio              |
+| GET    | `/prompts`     | System prompts available in `prompts/`  |
+| POST   | `/chat`        | Full response as JSON                   |
+| POST   | `/chat/stream` | Token-by-token response over SSE        |
 
 Single-turn request:
 
@@ -122,7 +129,7 @@ CLI and the HTTP API go through it, so they cannot drift apart. It owns:
 
 - **Prompt resolution**, by the precedence above.
 - **Model-family quirks.** Reasoning models want a lower temperature than chat
-  models, and the original DeepSeek R1 wanted *no* system role at all —
+  models, and the original DeepSeek R1 wanted _no_ system role at all —
   instructions had to be folded into the user turn. R1-0528 added system prompt
   support, so the two generations are detected separately by `familyOf()`.
 - **Context budget.** `trimHistory()` drops the oldest turns once the
@@ -134,15 +141,21 @@ CLI and the HTTP API go through it, so they cannot drift apart. It owns:
 
 ## Logs and failures
 
-The API logs to the console: one line per request, plus the detail of anything
-that failed. Levels are colored only when stdout is a terminal, so piping to a
-file gives plain text. `error` goes to stderr, everything else to stdout.
+The API logs to the console through [`@aglaya/logger`](https://www.npmjs.com/package/@aglaya/logger):
+one line per request, plus the detail of anything that failed. Colors are on
+only when stdout is a terminal, so piping to a file gives plain text.
+`LOG_LEVEL` (`debug|info|warn|error|silent`) sets the floor.
+
+Every line a single request produces carries the same short id, so a failure can
+be traced back to its access-log line. The id travels in an `AsyncLocalStorage`
+(`request-context.ts`), which is why route handlers never have to pass it
+around, and it comes back in the body of `500` responses.
 
 ```
-2026-01-15T10:22:11.556Z INFO  API listening on http://localhost:3000
-2026-01-15T10:22:30.507Z WARN  GET /nope 404 1ms
-2026-01-15T10:23:11.740Z ERROR POST /chat failed { message: 'Connection error.', stack: '...' }
-2026-01-15T10:23:11.742Z ERROR POST /chat 500 1331ms
+[2026-01-15T10:22:11.556Z] [INFO] API listening on http://localhost:3000
+[2026-01-15T10:22:30.507Z] [WARN] [a1b2c3d4] GET /nope 404 1ms
+[2026-01-15T10:23:11.740Z] [ERROR] [e5f6a7b8] POST /chat failed { message: 'Connection error.' }
+[2026-01-15T10:23:11.742Z] [ERROR] [e5f6a7b8] POST /chat 500 1331ms
 ```
 
 What is reported and how:
@@ -165,6 +178,23 @@ What is reported and how:
   rejections are logged and the process keeps serving: a dropped SSE connection
   can produce one, and killing the API for that is worse.
 
+## Timeouts, cancellation and shutdown
+
+- **Timeouts.** `REQUEST_TIMEOUT_MS` (2 minutes) and `MAX_RETRIES` (1) are
+  passed to the OpenAI SDK, whose own defaults are 10 minutes and 2 retries — a
+  hung LM Studio would otherwise hold a request open for the whole of it.
+- **Cancellation.** A client that hangs up aborts the upstream generation
+  through an `AbortSignal`, so LM Studio stops producing tokens nobody will
+  read. Cancellations are logged at `debug`, not as errors: they are the
+  expected outcome, not a failure.
+- **Model swaps.** The active model is resolved once and cached. `POST
+/models/refresh` (or `/model refresh` in the CLI) re-reads it, so swapping the
+  model in LM Studio does not mean restarting. With `MODEL` empty in `.env`,
+  `/health` also re-resolves on its own when the cached pick disappears.
+- **Shutdown.** On `SIGINT`/`SIGTERM` the server stops accepting connections and
+  closes open SSE streams with a final `event: shutdown` instead of dropping
+  them mid-message — which is what `tsx watch` does on every restart.
+
 ## Working with reasoning models
 
 DeepSeek R1 emits a chain of thought before the answer, and that matters in practice:
@@ -182,16 +212,23 @@ DeepSeek R1 emits a chain of thought before the answer, and that matters in prac
 ## Layout
 
 ```
-prompts/      system prompts, one .md per persona
+prompts/               system prompts, one .md per persona
 src/
-  config.ts   env loading and defaults
-  prompts.ts  loads prompts/*.md into a registry
-  harness.ts  prompt resolution, family quirks, history trimming
-  log.ts      timestamped console logger
-  llm.ts      LM Studio client, chat() and chatStream()
-  cli.ts      terminal chat
-  server.ts   HTTP API
+  config.ts            env loading and defaults
+  prompts.ts           loads prompts/*.md into a registry
+  harness.ts           prompt resolution, family quirks, history trimming
+  request-context.ts   per-request id, via AsyncLocalStorage
+  log.ts               logger setup and error helpers
+  llm.ts               LM Studio client, chat() and chatStream()
+  cli.ts               terminal chat
+  app.ts               the Express app: middleware, routes, validation
+  server.ts            listen(), signal handling, graceful shutdown
+  *.test.ts            vitest
 ```
+
+`app.ts` is separate from `server.ts` so the tests can mount the app on an
+ephemeral port without the process-level handlers. `./llm.js` is mocked there,
+which is what lets `pnpm test` pass with LM Studio closed.
 
 `llm.ts` is the only file that knows about the model provider — swapping LM Studio
 for Ollama or a cloud endpoint is a change of `LMSTUDIO_BASE_URL`.

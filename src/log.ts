@@ -1,35 +1,38 @@
-import { inspect } from "node:util";
+import { createLogger, LogLevel } from "@aglaya/logger";
+import { config, type LogLevel as ConfigLogLevel } from "./config.js";
+import { currentRequestId } from "./request-context.js";
 
-type Level = "info" | "warn" | "error";
-
-const COLOR: Record<Level, string> = {
-  info: "\x1b[36m",
-  warn: "\x1b[33m",
-  error: "\x1b[31m",
+const LEVELS: Record<ConfigLogLevel, LogLevel> = {
+  debug: LogLevel.DEBUG,
+  info: LogLevel.INFO,
+  warn: LogLevel.WARN,
+  error: LogLevel.ERROR,
+  silent: LogLevel.SILENT,
 };
-const RESET = "\x1b[0m";
 
-// Escape codes only when writing to a terminal: piping to a file or to a log
-// collector should get plain text.
-const color = process.stdout.isTTY === true;
+const base = createLogger({
+  level: LEVELS[config.logLevel],
+  timestamps: true,
+  // ANSI codes only when writing to a terminal: piping to a file or to a log
+  // collector should get plain text.
+  colors: process.stdout.isTTY === true,
+});
 
-function write(level: Level, message: string, context?: unknown): void {
-  const tag = level.toUpperCase().padEnd(5);
-  const head = color ? `${COLOR[level]}${tag}${RESET}` : tag;
-  const tail =
-    context === undefined
-      ? ""
-      : ` ${inspect(context, { depth: 3, breakLength: Infinity, colors: color })}`;
-
-  const stream = level === "error" ? process.stderr : process.stdout;
-  stream.write(`${new Date().toISOString()} ${head} ${message}${tail}\n`);
+/**
+ * Tags the line with the current request id, so every line a single request
+ * produced can be correlated — including the ones logged deep inside a route
+ * handler, which never see the id themselves.
+ */
+function tag(message: string): string {
+  const requestId = currentRequestId();
+  return requestId ? `[${requestId}] ${message}` : message;
 }
 
 export const log = {
-  info: (message: string, context?: unknown) => write("info", message, context),
-  warn: (message: string, context?: unknown) => write("warn", message, context),
-  error: (message: string, context?: unknown) =>
-    write("error", message, context),
+  debug: (message: string, data?: unknown) => base.debug(tag(message), data),
+  info: (message: string, data?: unknown) => base.info(tag(message), data),
+  warn: (message: string, data?: unknown) => base.warn(tag(message), data),
+  error: (message: string, data?: unknown) => base.error(tag(message), data),
 };
 
 /**
@@ -46,4 +49,16 @@ export function describeError(error: unknown): {
       : { message: error.message };
   }
   return { message: String(error) };
+}
+
+/**
+ * A client that hangs up mid-generation aborts the upstream request, and the
+ * SDK reports that as an error. It is the expected outcome of a cancellation,
+ * not a failure, so it must not be logged as one.
+ */
+export function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "AbortError" || error.name === "APIUserAbortError")
+  );
 }

@@ -15,6 +15,14 @@ function optionalStr(value: string | undefined): string | undefined {
   return value?.trim() || undefined;
 }
 
+const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
+function logLevel(value: string | undefined): LogLevel {
+  const level = value?.trim().toLowerCase();
+  return LOG_LEVELS.includes(level as LogLevel) ? (level as LogLevel) : "info";
+}
+
 export const config = {
   baseURL: process.env.LMSTUDIO_BASE_URL ?? "http://localhost:1234/v1",
   apiKey: process.env.LMSTUDIO_API_KEY ?? "lm-studio",
@@ -29,5 +37,11 @@ export const config = {
   systemPrompt: optionalStr(process.env.SYSTEM_PROMPT),
   /** Characters of history kept before the oldest turns are dropped. */
   historyBudget: num(process.env.HISTORY_BUDGET, 24000),
+  // The OpenAI SDK defaults to a 10-minute timeout and 2 retries, which means a
+  // hung LM Studio pins a request for that long. Two minutes is still generous
+  // for a local reasoning model, and one retry reports a dead server sooner.
+  requestTimeoutMs: num(process.env.REQUEST_TIMEOUT_MS, 120_000),
+  maxRetries: num(process.env.MAX_RETRIES, 1),
+  logLevel: logLevel(process.env.LOG_LEVEL),
   port: num(process.env.PORT, 3000),
 } as const;

@@ -14,6 +14,10 @@ export type ChatMessage = {
 export const client = new OpenAI({
   baseURL: config.baseURL,
   apiKey: config.apiKey,
+  // The SDK defaults to 10 minutes and 2 retries, so a hung LM Studio would
+  // hold a request open far longer than anyone waits for a local model.
+  timeout: config.requestTimeoutMs,
+  maxRetries: config.maxRetries,
 });
 
 let resolvedModel: string | null = config.model || null;
@@ -28,15 +32,26 @@ export async function listModels(): Promise<string[]> {
       `Cannot reach LM Studio at ${config.baseURL}. ` +
         `Open LM Studio > Developer, load a model and click "Start Server". ` +
         `(${(error as Error).message})`,
+      { cause: error },
     );
   }
 }
 
+/** Forces the next getModel() to ask LM Studio again. */
+export function clearModelCache(): void {
+  resolvedModel = config.model || null;
+}
+
 /**
  * Returns the model to use. When MODEL is empty in .env, picks the first model
- * loaded in LM Studio and caches it for the rest of the process.
+ * loaded in LM Studio and caches it for the rest of the process. Pass
+ * `refresh` after the model has been swapped in LM Studio, so the change does
+ * not require restarting.
  */
-export async function getModel(): Promise<string> {
+export async function getModel(
+  options: { refresh?: boolean } = {},
+): Promise<string> {
+  if (options.refresh) clearModelCache();
   if (resolvedModel) return resolvedModel;
 
   const models = await listModels();
@@ -54,6 +69,8 @@ export type ChatOptions = {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+  /** Aborts the upstream request, so a client hanging up stops generation. */
+  signal?: AbortSignal;
 };
 
 export type ChatResult = {
@@ -111,13 +128,16 @@ export async function chat(
   const model = options.model ?? (await getModel());
   const params = resolveParams(model, options);
 
-  const completion = await client.chat.completions.create({
-    model,
-    messages,
-    temperature: params.temperature,
-    max_tokens: params.maxTokens,
-    stream: false,
-  });
+  const completion = await client.chat.completions.create(
+    {
+      model,
+      messages,
+      temperature: params.temperature,
+      max_tokens: params.maxTokens,
+      stream: false,
+    },
+    { signal: options.signal },
+  );
 
   const choice = completion.choices[0];
   const raw = choice?.message?.content ?? "";
@@ -143,13 +163,16 @@ export async function* chatStream(
   const model = options.model ?? (await getModel());
   const params = resolveParams(model, options);
 
-  const stream = await client.chat.completions.create({
-    model,
-    messages,
-    temperature: params.temperature,
-    max_tokens: params.maxTokens,
-    stream: true,
-  });
+  const stream = await client.chat.completions.create(
+    {
+      model,
+      messages,
+      temperature: params.temperature,
+      max_tokens: params.maxTokens,
+      stream: true,
+    },
+    { signal: options.signal },
+  );
 
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta;
