@@ -12,8 +12,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The lower bound is what package.json declares in "engines".
-        node: [20, 22]
+        # The lower bound is what package.json declares in "engines". Node 20 is
+        # out: it is past end-of-life, and vitest 5 does not support it.
+        node: [22, 24]
 
     steps:
       - uses: actions/checkout@v4

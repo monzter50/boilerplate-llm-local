@@ -5,8 +5,9 @@
   "type": "module",
   "description": "Chat local con DeepSeek servido por LM Studio (CLI + API HTTP)",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
+  "packageManager": "pnpm@10.30.3",
   "scripts": {
     "cli": "tsx src/cli.ts",
     "dev": "tsx watch src/server.ts",

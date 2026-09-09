@@ -9,7 +9,7 @@ Two entry points share one LLM client:
 
 ## Requirements
 
-- Node.js 20+ and pnpm
+- Node.js 22+ and pnpm
 - LM Studio with a model loaded and the local server started
   (**Developer** tab → load model → **Start Server**, default `http://localhost:1234`)
 
