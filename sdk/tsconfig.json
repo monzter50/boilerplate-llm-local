@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    // DOM for fetch, ReadableStream and TextDecoder: the SDK runs in browsers
+    // as well as in Node 22+, where the same globals exist.
+    "lib": ["ES2023", "DOM"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true
+  },
+  // Tests included: the integration test mounts the server from ../src, so
+  // `pnpm typecheck` checks the SDK against the real server types too.
+  "include": ["src/**/*.ts"]
+}
