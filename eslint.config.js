@@ -1,9 +1,11 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+import reactHooks from "eslint-plugin-react-hooks";
+import globals from "globals";
 import prettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist/", "node_modules/", "coverage/"] },
+  { ignores: ["**/dist/", "**/node_modules/", "coverage/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -16,6 +18,11 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
     },
+  },
+  {
+    ...reactHooks.configs.flat["recommended-latest"],
+    files: ["web/**/*.{ts,tsx}"],
+    languageOptions: { globals: globals.browser },
   },
   // Formatting is Prettier's job; this turns off every rule that fights it.
   prettier,

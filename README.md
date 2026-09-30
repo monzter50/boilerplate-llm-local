@@ -5,7 +5,12 @@ Local AI chat backed by **DeepSeek running in LM Studio**. No cloud calls, no AP
 Two entry points share one LLM client:
 
 - a **terminal chat** with streaming and conversation history
-- an **HTTP API** (`/chat`, `/chat/stream`) to plug a frontend into later
+- an **HTTP API** (`/chat`, `/chat/stream`)
+
+And two clients sit on top of the API:
+
+- a **typed SDK** (`sdk/`, `@ia-local/sdk`) for any TypeScript app
+- a **web chat** (`web/`, React + shadcn/ui) built on that SDK
 
 ## Requirements
 
@@ -27,6 +32,8 @@ cp .env.example .env   # then set MODEL to the id shown in LM Studio
 ```bash
 pnpm cli       # terminal chat
 pnpm dev       # HTTP API on http://localhost:3000 (watch mode)
+pnpm web       # web chat on http://localhost:5173 (needs the API running)
+pnpm dev:all   # API and web chat together
 ```
 
 > `pnpm server` does **not** work: `server` is a built-in pnpm command that
@@ -98,6 +105,57 @@ data: {}
 ```
 
 Ignore every `reasoning` frame if you only want the answer.
+
+## Clients
+
+### SDK
+
+`sdk/` is a workspace package with no runtime dependencies. It uses `fetch`,
+so it runs in browsers and in Node 22+.
+
+```ts
+import { ApiError, createClient } from "@ia-local/sdk";
+
+const api = createClient({ baseUrl: "http://localhost:3000" });
+
+await api.health(); // { status: "ok" | "unavailable", ... }; a 503 is returned, not thrown
+await api.chat({ message: "hi", promptId: "coder" });
+
+const controller = new AbortController();
+for await (const chunk of api.chatStream(
+  { messages },
+  { signal: controller.signal },
+)) {
+  if (chunk.kind === "content") process.stdout.write(chunk.text);
+}
+```
+
+- Every non-2xx answer throws `ApiError` with `status` and, for server errors,
+  the `requestId` that matches the log line.
+- `chatStream` also throws when the server reports an error mid-stream, shuts
+  down, or the connection drops before `done`.
+- Aborting the signal rejects with `AbortError` and stops generation on the
+  server.
+
+Inside the workspace the package resolves straight to its TypeScript source.
+`pnpm build:sdk` emits `sdk/dist`, which is what `publishConfig` points at.
+
+### Web chat
+
+`web/` is Vite + React 19 + Zustand + Tailwind v4 + shadcn/ui. It has:
+
+- streaming answers, with reasoning in a collapsible panel
+- a Stop button
+- model and prompt pickers
+- an LM Studio health badge
+- light and dark themes
+
+The conversation is kept in `localStorage`, and the server stays stateless.
+
+Vite proxies `/api/*` to the API, so the browser never talks to port 3000
+directly. Set `API_URL` to point the proxy somewhere else. shadcn components
+live in `web/src/components/ui/`; add more with
+`pnpm dlx shadcn@latest add <name>` from `web/`.
 
 ## Prompts
 
@@ -224,6 +282,15 @@ src/
   app.ts               the Express app: middleware, routes, validation
   server.ts            listen(), signal handling, graceful shutdown
   *.test.ts            vitest
+sdk/src/
+  index.ts             createClient(), ApiError, API types
+  sse.ts               Server-Sent Events parser (EventSource cannot POST)
+web/src/
+  store.ts             chat state: history, streaming, persistence
+  components/          Header, MessageList, Message, Composer
+  components/ui/       shadcn/ui components
+test/utils/            helpers shared by every test: startServer, collect,
+                       streamOf, deferred, sleep
 ```
 
 `app.ts` is separate from `server.ts` so the tests can mount the app on an

@@ -1,6 +1,3 @@
-import { once } from "node:events";
-import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
 import {
   afterAll,
   beforeAll,
@@ -10,6 +7,12 @@ import {
   it,
   vi,
 } from "vitest";
+import {
+  deferred,
+  sleep,
+  startServer,
+  type TestServer,
+} from "../test/utils/index.js";
 import type { ChatChunk, ChatMessage, ChatOptions } from "./llm.js";
 
 // Every route reaches LM Studio through ./llm.js, so mocking it is what lets
@@ -31,21 +34,15 @@ vi.mock("./llm.js", () => ({
 
 const { app } = await import("./app.js");
 
-let server: Server;
+let server: TestServer;
 let baseUrl: string;
 
 beforeAll(async () => {
-  server = app.listen(0);
-  await once(server, "listening");
-  baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  server = await startServer(app);
+  baseUrl = server.baseUrl;
 });
 
-afterAll(
-  () =>
-    new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    }),
-);
+afterAll(() => server.close());
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -167,26 +164,21 @@ describe("POST /chat/stream", () => {
 
   it("aborts the upstream generation when the client hangs up", async () => {
     let captured: AbortSignal | undefined;
-    // Not Promise.withResolvers: that is ES2024 and this project supports
-    // Node 20, where it does not exist.
-    let onAbort!: () => void;
-    const aborted = new Promise<void>((resolve) => {
-      onAbort = resolve;
-    });
+    const aborted = deferred();
 
     mocks.chatStream.mockImplementation(async function* (
       _messages: ChatMessage[],
       options: ChatOptions = {},
     ): AsyncGenerator<ChatChunk> {
       captured = options.signal;
-      options.signal?.addEventListener("abort", () => onAbort(), {
+      options.signal?.addEventListener("abort", () => aborted.resolve(), {
         once: true,
       });
 
       yield { kind: "content", text: "first" };
 
       // Stays open until the test hangs up, standing in for a slow model.
-      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      await sleep(5_000);
       yield { kind: "content", text: "never sent" };
     });
 
@@ -202,7 +194,7 @@ describe("POST /chat/stream", () => {
     await reader.read();
     controller.abort();
 
-    await expect(aborted).resolves.toBeUndefined();
+    await expect(aborted.promise).resolves.toBeUndefined();
     expect(captured?.aborted).toBe(true);
   });
 });

@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "sdk/src/**/*.test.ts"],
     // config.ts imports "dotenv/config", and dotenv does not overwrite values
     // that are already set — so setting them here makes the suite hermetic
     // whatever each developer happens to have in .env. Blank means "unset",

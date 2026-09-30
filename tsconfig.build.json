@@ -1,5 +1,11 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Set here, not in the base config: tests import the shared helpers in
+    // test/, which sits outside src/ and would break a base-level rootDir.
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"],
   // Tests are type-checked by `pnpm typecheck`, which uses the base config, but
   // they must not be emitted into dist/.
   "exclude": ["src/**/*.test.ts"]
