@@ -64,6 +64,18 @@ describe("simple routes", () => {
     await expect(client.refreshModel()).resolves.toBe("swapped-model");
   });
 
+  it("labels each model with what kind it is", async () => {
+    mocks.listModels.mockResolvedValue([
+      "deepseek/deepseek-r1-0528-qwen3-8b",
+      "qwen2.5-7b-instruct",
+    ]);
+
+    await expect(client.modelDetails()).resolves.toEqual([
+      expect.objectContaining({ family: "reasoner", reasoning: true }),
+      expect.objectContaining({ family: "chat", reasoning: false }),
+    ]);
+  });
+
   it("returns an unavailable health instead of throwing on 503", async () => {
     mocks.listModels.mockRejectedValue(new Error("Cannot reach LM Studio"));
 
@@ -94,6 +106,12 @@ describe("chat()", () => {
       answer: "hola",
       finishReason: "stop",
       truncated: false,
+      modelInfo: {
+        id: "test-model",
+        family: "chat",
+        reasoning: false,
+        supportsSystem: true,
+      },
     });
   });
 
@@ -137,6 +155,32 @@ describe("chatStream()", () => {
       { kind: "content", text: "ho" },
       { kind: "content", text: "la" },
     ]);
+  });
+
+  it("reports the answering model through onMeta, before any chunk", async () => {
+    mocks.getModel.mockResolvedValue("deepseek-r1-distill-qwen-7b");
+    mocks.chatStream.mockImplementation(
+      async function* (): AsyncGenerator<ChatChunk> {
+        yield { kind: "content", text: "hola" };
+      },
+    );
+
+    const order: string[] = [];
+    const onMeta = vi.fn(() => order.push("meta"));
+    for await (const chunk of client.chatStream(
+      { message: "hi" },
+      { onMeta },
+    )) {
+      order.push(chunk.kind);
+    }
+
+    expect(order).toEqual(["meta", "content"]);
+    expect(onMeta).toHaveBeenCalledWith({
+      id: "deepseek-r1-distill-qwen-7b",
+      family: "reasoner-legacy",
+      reasoning: true,
+      supportsSystem: false,
+    });
   });
 
   it("throws a validation error before the stream starts", async () => {

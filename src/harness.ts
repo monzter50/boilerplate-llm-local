@@ -14,6 +14,8 @@ const FALLBACK_SYSTEM_PROMPT =
  */
 export type Family = {
   name: string;
+  /** Thinks before answering: slower, better at math, code and logic. */
+  reasoning: boolean;
   supportsSystem: boolean;
   /** Applied only when TEMPERATURE is unset in .env. */
   temperature: number;
@@ -21,12 +23,40 @@ export type Family = {
 
 export function familyOf(model: string): Family {
   if (/r1-0528|qwq/i.test(model)) {
-    return { name: "reasoner", supportsSystem: true, temperature: 0.6 };
+    return {
+      name: "reasoner",
+      reasoning: true,
+      supportsSystem: true,
+      temperature: 0.6,
+    };
   }
   if (/r1|reasoner|thinking/i.test(model)) {
-    return { name: "reasoner-legacy", supportsSystem: false, temperature: 0.6 };
+    return {
+      name: "reasoner-legacy",
+      reasoning: true,
+      supportsSystem: false,
+      temperature: 0.6,
+    };
   }
-  return { name: "chat", supportsSystem: true, temperature: 0.7 };
+  return {
+    name: "chat",
+    reasoning: false,
+    supportsSystem: true,
+    temperature: 0.7,
+  };
+}
+
+/** What clients are told about a model, so they can label it. */
+export type ModelInfo = {
+  id: string;
+  family: string;
+  reasoning: boolean;
+  supportsSystem: boolean;
+};
+
+export function describeModel(id: string): ModelInfo {
+  const { name, reasoning, supportsSystem } = familyOf(id);
+  return { id, family: name, reasoning, supportsSystem };
 }
 
 export type PromptSelection = {

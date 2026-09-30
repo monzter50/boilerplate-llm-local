@@ -2,7 +2,7 @@ import express, { type ErrorRequestHandler, type Response } from "express";
 import cors from "cors";
 import { z } from "zod";
 import { config } from "./config.js";
-import { buildMessages } from "./harness.js";
+import { buildMessages, describeModel } from "./harness.js";
 import { describeError, isAbortError, log } from "./log.js";
 import { hasPrompt, listPrompts } from "./prompts.js";
 import { chat, chatStream, getModel, listModels } from "./llm.js";
@@ -147,7 +147,12 @@ app.get("/health", async (_req, res) => {
       return;
     }
 
-    res.json({ status: "ok", model, baseURL: config.baseURL });
+    res.json({
+      status: "ok",
+      model,
+      info: describeModel(model),
+      baseURL: config.baseURL,
+    });
   } catch (error) {
     log.warn("health check failed", describeError(error));
     res
@@ -158,7 +163,9 @@ app.get("/health", async (_req, res) => {
 
 app.get("/models", async (_req, res) => {
   try {
-    res.json({ models: await listModels() });
+    const models = await listModels();
+    // `details` is additive: `models` keeps its shape for older clients.
+    res.json({ models, details: models.map(describeModel) });
   } catch (error) {
     log.error("GET /models failed", describeError(error));
     res.status(503).json({ error: (error as Error).message });
@@ -215,6 +222,7 @@ app.post("/chat", async (req, res) => {
       finishReason: result.finishReason,
       // Reasoning models can burn the whole budget thinking and return nothing.
       truncated: result.finishReason === "length",
+      modelInfo: describeModel(model),
     });
   } catch (error) {
     // Nobody is listening once the request was aborted, so there is nothing to
@@ -233,9 +241,10 @@ app.post("/chat", async (req, res) => {
 });
 
 /**
- * Server-Sent Events. Each frame is `{ kind: "reasoning" | "content", text }`,
- * followed by a `done` event. Clients that only want the answer can ignore
- * every frame whose kind is "reasoning".
+ * Server-Sent Events. A `meta` event describes the model first, then each
+ * frame is `{ kind: "reasoning" | "content", text }`, followed by a `done`
+ * event. Clients that only want the answer can ignore every frame whose kind
+ * is "reasoning".
  */
 app.post("/chat/stream", async (req, res) => {
   const parsed = chatBodySchema.safeParse(req.body);
@@ -262,6 +271,11 @@ app.post("/chat/stream", async (req, res) => {
   try {
     const model = parsed.data.model ?? (await getModel());
     const messages = buildMessages({ ...parsed.data, model });
+
+    // A named event, so clients that only read the default "message" frames
+    // (EventSource semantics) never see it. It tells the UI which model is
+    // answering and whether to expect reasoning frames.
+    res.write(`event: meta\ndata: ${JSON.stringify(describeModel(model))}\n\n`);
 
     for await (const chunk of chatStream(messages, {
       temperature: parsed.data.temperature,

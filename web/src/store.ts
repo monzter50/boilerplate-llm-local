@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ApiError, type ChatMessage } from "@ia-local/sdk";
+import { ApiError, type ChatMessage, type ModelInfo } from "@ia-local/sdk";
 import { api } from "./api";
 
 export type MessageStatus = "streaming" | "done" | "error" | "stopped";
@@ -14,6 +14,10 @@ export type UiMessage = {
   status: MessageStatus;
   error?: string;
   requestId?: string;
+  /** The model that answered, as the server classifies it. */
+  modelInfo?: ModelInfo;
+  /** Time from the first reasoning token to the first answer token. */
+  thinkingMs?: number;
 };
 
 type ChatState = {
@@ -98,22 +102,45 @@ export const useChat = create<ChatState>()(
           controller = new AbortController();
           const { model, promptId } = get();
 
+          // Thinking time runs from the first reasoning token until the answer
+          // starts, or until the stream ends for an answer that never came.
+          let thinkingSince: number | null = null;
+          const stopThinkingClock = (): Partial<UiMessage> => {
+            if (thinkingSince === null) return {};
+            const thinkingMs = performance.now() - thinkingSince;
+            thinkingSince = null;
+            return { thinkingMs };
+          };
+
           try {
             const stream = api.chatStream(
               { messages: toHistory(messages), model, promptId },
-              { signal: controller.signal },
+              {
+                signal: controller.signal,
+                onMeta: (modelInfo) => patch(reply.id, () => ({ modelInfo })),
+              },
             );
             for await (const chunk of stream) {
-              patch(reply.id, (m) =>
-                chunk.kind === "content"
-                  ? { content: m.content + chunk.text }
-                  : { reasoning: m.reasoning + chunk.text },
-              );
+              if (chunk.kind === "reasoning") {
+                thinkingSince ??= performance.now();
+                patch(reply.id, (m) => ({
+                  reasoning: m.reasoning + chunk.text,
+                }));
+              } else {
+                const timing = stopThinkingClock();
+                patch(reply.id, (m) => ({
+                  ...timing,
+                  content: m.content + chunk.text,
+                }));
+              }
             }
-            patch(reply.id, () => ({ status: "done" }));
+            patch(reply.id, () => ({ ...stopThinkingClock(), status: "done" }));
           } catch (error) {
             if ((error as Error).name === "AbortError") {
-              patch(reply.id, () => ({ status: "stopped" }));
+              patch(reply.id, () => ({
+                ...stopThinkingClock(),
+                status: "stopped",
+              }));
             } else {
               patch(reply.id, () => ({
                 status: "error",

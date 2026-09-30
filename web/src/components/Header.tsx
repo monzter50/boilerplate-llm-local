@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, SquarePen } from "lucide-react";
-import type { HealthResponse } from "@ia-local/sdk";
+import type { HealthResponse, ModelInfo } from "@ia-local/sdk";
 import { useShallow } from "zustand/react/shallow";
 import { api } from "@/api";
 import { useChat } from "@/store";
@@ -19,6 +19,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ModelKindBadge, ModelKindLabel } from "./ModelKindBadge";
 import { ThemeToggle } from "./ThemeToggle";
 
 const HEALTH_POLL_MS = 15_000;
@@ -27,14 +28,14 @@ const HEALTH_POLL_MS = 15_000;
 // a sentinel of its own.
 const DEFAULT = "__default";
 
-type Status = { health: HealthResponse; models?: string[] };
+type Status = { health: HealthResponse; models?: ModelInfo[] };
 
 /** Health, plus the model list when LM Studio is up. Never throws. */
 async function fetchStatus(): Promise<Status> {
   try {
     const health = await api.health();
     if (health.status !== "ok") return { health };
-    return { health, models: await api.models() };
+    return { health, models: await api.modelDetails() };
   } catch (error) {
     // The API itself is down, not just LM Studio.
     return {
@@ -58,7 +59,7 @@ export function Header() {
     })),
   );
   const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [models, setModels] = useState<string[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [prompts, setPrompts] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -99,7 +100,10 @@ export function Header() {
   }
 
   const ok = health?.status === "ok";
-  const serverModel = health?.status === "ok" ? health.model : undefined;
+  const serverInfo = health?.status === "ok" ? health.info : undefined;
+  const serverModel = serverInfo?.id;
+  // The model the next message goes to: the picked one, or the server's.
+  const activeInfo = model ? models.find((m) => m.id === model) : serverInfo;
 
   return (
     <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
@@ -133,7 +137,7 @@ export function Header() {
           value={model ?? DEFAULT}
           onValueChange={(v) => setModel(v === DEFAULT ? undefined : v)}
         >
-          <SelectTrigger size="sm" className="w-52" aria-label="Model">
+          <SelectTrigger size="sm" className="w-64" aria-label="Model">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -141,8 +145,9 @@ export function Header() {
               Server default{serverModel ? ` (${serverModel})` : ""}
             </SelectItem>
             {models.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
+              <SelectItem key={m.id} value={m.id}>
+                {m.id}
+                <ModelKindLabel info={m} className="ml-1.5" />
               </SelectItem>
             ))}
           </SelectContent>
@@ -162,6 +167,8 @@ export function Header() {
           </TooltipTrigger>
           <TooltipContent>Re-read models from LM Studio</TooltipContent>
         </Tooltip>
+
+        {activeInfo && <ModelKindBadge info={activeInfo} />}
 
         <Select
           value={promptId ?? DEFAULT}

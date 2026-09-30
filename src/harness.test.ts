@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildMessages,
+  describeModel,
   familyOf,
   resolveParams,
   trimHistory,
@@ -33,6 +34,21 @@ describe("familyOf", () => {
     expect(familyOf("qwen2.5-7b-instruct")).toMatchObject({
       supportsSystem: true,
       temperature: 0.7,
+    });
+  });
+});
+
+describe("describeModel", () => {
+  it("flags reasoning models, so clients can label them", () => {
+    expect(describeModel("deepseek/deepseek-r1-0528-qwen3-8b")).toEqual({
+      id: "deepseek/deepseek-r1-0528-qwen3-8b",
+      family: "reasoner",
+      reasoning: true,
+      supportsSystem: true,
+    });
+    expect(describeModel("qwen2.5-7b-instruct")).toMatchObject({
+      family: "chat",
+      reasoning: false,
     });
   });
 });

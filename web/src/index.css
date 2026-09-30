@@ -24,6 +24,7 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --success: oklch(0.627 0.17 149);
+  --thinking: oklch(0.541 0.2 293);
 }
 
 .dark {
@@ -46,6 +47,7 @@
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
   --success: oklch(0.723 0.19 150);
+  --thinking: oklch(0.714 0.14 293);
 }
 
 @theme inline {
@@ -72,6 +74,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-success: var(--success);
+  --color-thinking: var(--thinking);
 }
 
 @layer base {

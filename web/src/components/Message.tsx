@@ -1,13 +1,84 @@
 import { useState } from "react";
-import { AlertCircle, Brain, ChevronRight, Loader2 } from "lucide-react";
+import { AlertCircle, Brain, ChevronRight, Loader2, Zap } from "lucide-react";
 import type { UiMessage } from "@/store";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return "<1s";
+  const seconds = ms / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+}
+
+/** Whether this answer went through a thinking step, and which model gave it. */
+function AnswerBadges({ message }: { message: UiMessage }) {
+  const { modelInfo, reasoning, thinkingMs, status } = message;
+  const thought = reasoning.length > 0;
+
+  let think: { label: string; hint: string } | null = null;
+  if (thought && thinkingMs !== undefined) {
+    think = {
+      label: `Thought for ${formatDuration(thinkingMs)}`,
+      hint: "The model reasoned before answering. Open the Reasoning panel above to read it.",
+    };
+  } else if (!thought && status === "done" && modelInfo) {
+    think = modelInfo.reasoning
+      ? {
+          label: "Skipped thinking",
+          hint: "A reasoning model, but it answered without a thinking step this time.",
+        }
+      : {
+          label: "No thinking",
+          hint: "A chat model: it answers directly, with no thinking step.",
+        };
+  }
+
+  if (!think && !modelInfo) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      {think && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="outline"
+              className={cn(
+                "gap-1 font-normal",
+                thought
+                  ? "border-thinking/40 text-thinking"
+                  : "text-muted-foreground",
+              )}
+            >
+              {thought ? <Brain /> : <Zap />}
+              {think.label}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-64">{think.hint}</TooltipContent>
+        </Tooltip>
+      )}
+      {modelInfo && (
+        <Badge
+          variant="outline"
+          className="font-mono font-normal text-muted-foreground"
+        >
+          {modelInfo.id}
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 function Reasoning({ message }: { message: UiMessage }) {
   // Open while the model is still thinking, closed once the answer starts;
@@ -61,6 +132,8 @@ export function Message({ message }: { message: UiMessage }) {
       {message.content && (
         <div className="whitespace-pre-wrap">{message.content}</div>
       )}
+
+      <AnswerBadges message={message} />
 
       {message.status === "stopped" && (
         <p className="mt-1 text-xs text-muted-foreground">Stopped.</p>

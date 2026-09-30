@@ -32,6 +32,17 @@ export type ChatRequest = {
   model?: string;
 };
 
+/** How the server classifies a model (familyOf in src/harness.ts). */
+export type ModelInfo = {
+  id: string;
+  /** "reasoner", "reasoner-legacy" or "chat". */
+  family: string;
+  /** Thinks before answering: slower, better at math, code and logic. */
+  reasoning: boolean;
+  /** False for the original DeepSeek R1, which takes no system role. */
+  supportsSystem: boolean;
+};
+
 export type ChatResponse = {
   answer: string;
   /** Chain of thought, for reasoning models such as DeepSeek R1. */
@@ -39,15 +50,22 @@ export type ChatResponse = {
   finishReason: string | null;
   /** The model hit the token budget, possibly before writing any answer. */
   truncated: boolean;
+  /** The model that answered. */
+  modelInfo: ModelInfo;
 };
 
 export type HealthResponse =
-  | { status: "ok"; model: string; baseURL: string }
+  | { status: "ok"; model: string; info: ModelInfo; baseURL: string }
   | { status: "unavailable"; error: string; baseURL?: string };
 
 export type RequestOptions = {
   /** Aborting also stops the generation on the server. */
   signal?: AbortSignal;
+};
+
+export type StreamOptions = RequestOptions & {
+  /** Called once, before the first chunk, with the model that is answering. */
+  onMeta?: (info: ModelInfo) => void;
 };
 
 export type ClientOptions = {
@@ -165,6 +183,17 @@ export function createClient(options: ClientOptions = {}) {
       return res.models;
     },
 
+    /** Models loaded in LM Studio, with what kind of model each one is. */
+    async modelDetails(options: RequestOptions = {}): Promise<ModelInfo[]> {
+      const res = await request<{ details: ModelInfo[] }>(
+        "GET",
+        "/models",
+        undefined,
+        options.signal,
+      );
+      return res.details;
+    },
+
     /** Re-resolves the active model, after swapping it in LM Studio. */
     async refreshModel(options: RequestOptions = {}): Promise<string> {
       const res = await request<{ model: string }>(
@@ -202,7 +231,7 @@ export function createClient(options: ClientOptions = {}) {
      */
     async *chatStream(
       body: ChatRequest,
-      options: RequestOptions = {},
+      options: StreamOptions = {},
     ): AsyncGenerator<ChatChunk> {
       const response = await send("POST", "/chat/stream", body, options.signal);
 
@@ -219,6 +248,9 @@ export function createClient(options: ClientOptions = {}) {
         switch (frame.event) {
           case "message":
             yield JSON.parse(frame.data) as ChatChunk;
+            break;
+          case "meta":
+            options.onMeta?.(JSON.parse(frame.data) as ModelInfo);
             break;
           case "done":
             return;
