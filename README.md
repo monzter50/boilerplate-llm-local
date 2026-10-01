@@ -166,6 +166,8 @@ Inside the workspace the package resolves straight to its TypeScript source.
 `web/` is Vite + React 19 + Zustand + Tailwind v4 + shadcn/ui. It has:
 
 - streaming answers, with reasoning in a collapsible panel
+- answers rendered as GitHub-flavored Markdown, with highlighted code blocks and
+  a copy button. Raw HTML from the model is shown as text, never rendered.
 - a Stop button
 - model and prompt pickers
 - an LM Studio health badge

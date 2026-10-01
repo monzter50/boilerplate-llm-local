@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -89,4 +90,61 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+}
+
+/*
+ * Syntax highlighting for rehype-highlight. Hand-rolled instead of a
+ * highlight.js theme file: those are either light or dark, and this follows
+ * the app's theme through --hl-* tokens.
+ */
+:root {
+  --hl-keyword: oklch(0.5 0.2 300);
+  --hl-string: oklch(0.52 0.14 150);
+  --hl-number: oklch(0.55 0.15 50);
+  --hl-title: oklch(0.5 0.15 250);
+  --hl-comment: oklch(0.556 0 0);
+}
+
+.dark {
+  --hl-keyword: oklch(0.75 0.15 300);
+  --hl-string: oklch(0.78 0.14 150);
+  --hl-number: oklch(0.8 0.13 60);
+  --hl-title: oklch(0.75 0.13 250);
+  --hl-comment: oklch(0.6 0 0);
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-type,
+.hljs-meta {
+  color: var(--hl-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-attribute {
+  color: var(--hl-string);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-variable.language_ {
+  color: var(--hl-number);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_,
+.hljs-attr,
+.hljs-property,
+.hljs-name {
+  color: var(--hl-title);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-deletion {
+  color: var(--destructive);
 }

@@ -1,7 +1,13 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { AlertCircle, Brain, ChevronRight, Loader2, Zap } from "lucide-react";
 import type { UiMessage } from "@/store";
 import { cn } from "@/lib/utils";
+
+// Markdown, GFM and syntax highlighting roughly double the bundle, so they
+// load as their own chunk. Until it arrives, answers show as plain text.
+const Markdown = lazy(() =>
+  import("./Markdown").then((m) => ({ default: m.Markdown })),
+);
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -130,7 +136,13 @@ export function Message({ message }: { message: UiMessage }) {
       )}
 
       {message.content && (
-        <div className="whitespace-pre-wrap">{message.content}</div>
+        <Suspense
+          fallback={
+            <div className="whitespace-pre-wrap">{message.content}</div>
+          }
+        >
+          <Markdown text={message.content} />
+        </Suspense>
       )}
 
       <AnswerBadges message={message} />
