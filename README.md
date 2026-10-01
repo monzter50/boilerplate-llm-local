@@ -328,9 +328,16 @@ test/utils/            helpers shared by every test: startServer, collect,
                        streamOf, deferred, sleep
 ```
 
-`app.ts` is separate from `server.ts` so the tests can mount the app on an
-ephemeral port without the process-level handlers. `./llm.js` is mocked there,
-which is what lets `pnpm test` pass with LM Studio closed.
+`app.ts` exports `createApp({ llm, config })` and `server.ts` wires the real
+dependencies. This lets the tests:
+
+- mount the app on an ephemeral port without the process-level handlers
+- pass a fake LLM (`fakeLlm()` in `test/utils/`), which is what lets `pnpm test`
+  pass with LM Studio closed, with no module mocking
+- build a second app with a different config in the same suite
+
+The harness still reads the module-level `config` for prompt resolution and the
+history budget.
 
 `llm.ts` is the only file that knows about the model provider — swapping LM Studio
 for Ollama or a cloud endpoint is a change of `LMSTUDIO_BASE_URL`.

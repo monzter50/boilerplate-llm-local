@@ -7,10 +7,13 @@ import {
   it,
   vi,
 } from "vitest";
+import { createApp } from "../../src/app.js";
+import { config } from "../../src/config.js";
 import type { ChatChunk, ChatOptions } from "../../src/llm.js";
 import {
   collect,
   deferred,
+  fakeLlm,
   sleep,
   startServer,
   streamOf,
@@ -19,24 +22,10 @@ import {
 import { ApiError, createClient, type Client } from "./index.js";
 import { parseSse } from "./sse.js";
 
-// Same setup as src/app.test.ts: the real Express app with ./llm.js mocked, so
-// the SDK is checked against the real routes and SSE framing without LM Studio.
-const mocks = vi.hoisted(() => ({
-  listModels: vi.fn<() => Promise<string[]>>(),
-  getModel: vi.fn<(options?: { refresh?: boolean }) => Promise<string>>(),
-  chat: vi.fn(),
-  chatStream: vi.fn(),
-}));
-
-vi.mock("../../src/llm.js", () => ({
-  listModels: mocks.listModels,
-  getModel: mocks.getModel,
-  chat: mocks.chat,
-  chatStream: mocks.chatStream,
-  clearModelCache: vi.fn(),
-}));
-
-const { app } = await import("../../src/app.js");
+// Same setup as src/app.test.ts: the real Express app with a fake LLM, so the
+// SDK is checked against the real routes and SSE framing without LM Studio.
+const mocks = fakeLlm();
+const { app } = createApp({ llm: mocks, config });
 
 let server: TestServer;
 let client: Client;

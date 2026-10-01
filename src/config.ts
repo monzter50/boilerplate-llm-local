@@ -45,3 +45,5 @@ export const config = {
   logLevel: logLevel(process.env.LOG_LEVEL),
   port: num(process.env.PORT, 3000),
 } as const;
+
+export type Config = typeof config;

@@ -68,6 +68,17 @@ export async function getModel(
   return first;
 }
 
+/**
+ * What the HTTP app needs from an LLM backend. This module implements it;
+ * tests hand createApp a fake instead of mocking the module.
+ */
+export type LlmPort = {
+  listModels: typeof listModels;
+  getModel: typeof getModel;
+  chat: typeof chat;
+  chatStream: typeof chatStream;
+};
+
 export type ChatOptions = {
   temperature?: number;
   maxTokens?: number;

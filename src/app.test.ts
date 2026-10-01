@@ -9,30 +9,19 @@ import {
 } from "vitest";
 import {
   deferred,
+  fakeLlm,
   sleep,
   startServer,
   type TestServer,
 } from "../test/utils/index.js";
+import { createApp } from "./app.js";
+import { config } from "./config.js";
 import type { ChatChunk, ChatMessage, ChatOptions } from "./llm.js";
 
-// Every route reaches LM Studio through ./llm.js, so mocking it is what lets
-// the whole suite run in CI with nothing listening on 1234.
-const mocks = vi.hoisted(() => ({
-  listModels: vi.fn<() => Promise<string[]>>(),
-  getModel: vi.fn<(options?: { refresh?: boolean }) => Promise<string>>(),
-  chat: vi.fn(),
-  chatStream: vi.fn(),
-}));
-
-vi.mock("./llm.js", () => ({
-  listModels: mocks.listModels,
-  getModel: mocks.getModel,
-  chat: mocks.chat,
-  chatStream: mocks.chatStream,
-  clearModelCache: vi.fn(),
-}));
-
-const { app } = await import("./app.js");
+// Every route reaches LM Studio through the injected LLM, so a fake one is
+// what lets the whole suite run in CI with nothing listening on 1234.
+const mocks = fakeLlm();
+const { app } = createApp({ llm: mocks, config });
 
 let server: TestServer;
 let baseUrl: string;
@@ -131,6 +120,32 @@ describe("GET /health", () => {
     expect(response.status).toBe(503);
     const body = (await response.json()) as { error: string };
     expect(body.error).toMatch(/another-model/);
+  });
+});
+
+describe("GET /health with MODEL set in .env", () => {
+  it("reports the pinned model as missing instead of picking another", async () => {
+    const llm = fakeLlm();
+    llm.listModels.mockResolvedValue(["another-model"]);
+    llm.getModel.mockResolvedValue("pinned-model");
+
+    // A second app with its own config: no module mocking needed for that.
+    const pinned = await startServer(
+      createApp({ llm, config: { ...config, model: "pinned-model" } }).app,
+    );
+    try {
+      const response = await fetch(`${pinned.baseUrl}/health`);
+
+      // The user asked for this model, so silently switching would hide the
+      // problem: no refresh, and a 503 that names both.
+      expect(llm.getModel).not.toHaveBeenCalledWith({ refresh: true });
+      expect(response.status).toBe(503);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toMatch(/'pinned-model' is not loaded/);
+      expect(body.error).toMatch(/another-model/);
+    } finally {
+      await pinned.close();
+    }
   });
 });
 

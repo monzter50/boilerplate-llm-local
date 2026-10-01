@@ -1,9 +1,12 @@
-import { app, openStreams } from "./app.js";
+import { createApp } from "./app.js";
 import { config } from "./config.js";
+import * as llm from "./llm.js";
 import { describeError, log } from "./log.js";
 import { listPrompts } from "./prompts.js";
 
 const SHUTDOWN_GRACE_MS = 5_000;
+
+const { app, openStreams } = createApp({ llm, config });
 
 const server = app.listen(config.port, () => {
   log.info(`API listening on http://localhost:${config.port}`);
