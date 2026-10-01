@@ -76,9 +76,28 @@ describe("trimHistory", () => {
   });
 
   it("drops the oldest turns first, and only as many as needed", () => {
+    const turns = [
+      user("a".repeat(50)),
+      assistant("b".repeat(50)),
+      user("c".repeat(10)),
+      assistant("d".repeat(10)),
+      user("e"),
+    ];
+    // 121 characters against a budget of 30: the first exchange has to go, the
+    // second fits.
+    expect(trimHistory(turns, 30)).toEqual(turns.slice(2));
+  });
+
+  it("never leaves the assistant speaking first after trimming", () => {
     const turns = [user("a".repeat(50)), assistant("b".repeat(50)), user("c")];
-    // 101 characters against a budget of 60: dropping the first turn is enough.
-    expect(trimHistory(turns, 60)).toEqual([turns[1], turns[2]]);
+    // Dropping the first turn alone fits the budget, but would leave the
+    // assistant first, which Llama and Mistral templates reject.
+    expect(trimHistory(turns, 60)).toEqual([turns[2]]);
+  });
+
+  it("leaves an untrimmed conversation exactly as sent", () => {
+    const turns = [assistant("Hi! How can I help?"), user("hello")];
+    expect(trimHistory(turns, 100)).toEqual(turns);
   });
 
   it("never drops the turn being answered", () => {
@@ -117,6 +136,25 @@ describe("buildMessages", () => {
     expect(messages.every((m) => m.role !== "system")).toBe(true);
     expect(messages[0]).toEqual(user("primera"));
     expect(messages[2]?.content).toBe(`${getPrompt("translator")}\n\nsegunda`);
+  });
+
+  it("takes the system prompt out of the history budget", () => {
+    // HISTORY_BUDGET is unset in the test env, so the default 24 000 applies.
+    // On its own the history (101 characters) fits easily; next to a 23 990
+    // character prompt only 10 are left, so only the last turn stays.
+    const history = [
+      user("a".repeat(50)),
+      assistant("b".repeat(50)),
+      user("c"),
+    ];
+    const messages = buildMessages({
+      model: chatModel,
+      system: "s".repeat(23_990),
+      messages: history,
+    });
+
+    expect(messages.map((m) => m.role)).toEqual(["system", "user"]);
+    expect(messages[1]).toEqual(user("c"));
   });
 
   it("lets a system turn from the caller win over promptId", () => {

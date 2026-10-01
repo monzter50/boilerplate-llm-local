@@ -211,9 +211,11 @@ CLI and the HTTP API go through it, so they cannot drift apart. It owns:
   models, and the original DeepSeek R1 wanted _no_ system role at all —
   instructions had to be folded into the user turn. R1-0528 added system prompt
   support, so the two generations are detected separately by `familyOf()`.
-- **Context budget.** `trimHistory()` drops the oldest turns once the
-  conversation exceeds `HISTORY_BUDGET` characters, never dropping the turn
-  being answered.
+- **Context budget.** `trimHistory()` drops the oldest turns once the system
+  prompt plus the conversation exceed `HISTORY_BUDGET` characters.
+  - It never drops the turn being answered.
+  - A trimmed conversation never starts with an assistant turn, because Llama
+    and Mistral templates require it to start with the user.
 - **Generation parameters.** `resolveParams()` applies per-request override →
   `.env` → family default. Leaving `TEMPERATURE` empty in `.env` is what lets
   the family default (0.6 for reasoning models) take effect.

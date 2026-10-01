@@ -79,6 +79,10 @@ export function resolveSystemPrompt(selection: PromptSelection = {}): string {
  * measured in characters rather than tokens: an approximation, but it avoids
  * loading a tokenizer for a limit that is itself a heuristic. The final turn is
  * never dropped — it is the one being answered.
+ *
+ * A trimmed conversation never starts with the assistant: chat templates such
+ * as Llama's and Mistral's require user/assistant alternation from a user turn,
+ * and fail or degrade without it. An untrimmed one is passed through as sent.
  */
 export function trimHistory(
   turns: ChatMessage[],
@@ -90,6 +94,9 @@ export function trimHistory(
   const kept = [...turns];
   while (kept.length > 1 && total > budget) {
     total -= kept.shift()!.content.length;
+  }
+  while (kept.length > 1 && kept[0]!.role === "assistant") {
+    kept.shift();
   }
   return kept;
 }
@@ -143,7 +150,13 @@ export function buildMessages(input: BuildInput): ChatMessage[] {
     provided[0]?.role === "system" ? provided.shift()!.content : undefined;
   const system = callerSystem ?? resolveSystemPrompt(input);
 
-  const turns = trimHistory(provided);
+  // The system prompt shares the context window with the history, so it comes
+  // out of the same budget. A long prompts/*.md would otherwise push the total
+  // past the model's real context.
+  const turns = trimHistory(
+    provided,
+    Math.max(0, config.historyBudget - system.length),
+  );
   const family = familyOf(input.model);
 
   return family.supportsSystem
