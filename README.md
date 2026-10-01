@@ -259,6 +259,16 @@ DeepSeek R1 emits a chain of thought before the answer, and that matters in prac
 
 - **LM Studio returns it in a separate `reasoning_content` field**, not inline in
   `content`. It is exposed here as `reasoning` / frames of kind `reasoning`.
+- **Some GGUF builds leave `<think>` tags inside `content` instead.** `think.ts`
+  splits them out of both `/chat` and `/chat/stream`, including:
+  - a tag split across chunks (`"<thi"` + `"nk>"`)
+  - output with no opening tag, because the chat template injected it
+  - a `</think>` that never arrives because the answer was truncated
+
+  When the output has no opening tag, a reasoning-family model (`familyOf`) is
+  assumed to be thinking until `</think>`, and a chat model is assumed to be
+  answering. Tags mentioned in the middle of an answer are left as text.
+
 - **It consumes the token budget.** A short answer can still burn 400+ tokens
   thinking, so `MAX_TOKENS` is 4096 by default. Too low and `content` comes back
   empty with `finishReason: "length"` — the response's `truncated` flag marks that case.
@@ -278,6 +288,7 @@ src/
   request-context.ts   per-request id, via AsyncLocalStorage
   log.ts               logger setup and error helpers
   llm.ts               LM Studio client, chat() and chatStream()
+  think.ts             splits inline <think> tags out of content, streamed or not
   cli.ts               terminal chat
   app.ts               the Express app: middleware, routes, validation
   server.ts            listen(), signal handling, graceful shutdown

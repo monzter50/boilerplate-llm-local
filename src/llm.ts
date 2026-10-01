@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 import { config } from "./config.js";
-import { resolveParams } from "./harness.js";
+import { familyOf, resolveParams } from "./harness.js";
+import { splitThinking, ThinkSplitter } from "./think.js";
+
+export { splitThinking } from "./think.js";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -91,7 +94,7 @@ export type ChatChunk = {
  * Reasoning models expose their chain of thought in a non-standard field that
  * is missing from the OpenAI SDK types: LM Studio and the DeepSeek API use
  * `reasoning_content`, other servers use `reasoning`. Some GGUF builds instead
- * leave raw <think> tags inside `content`, which `splitThinking` handles.
+ * leave raw <think> tags inside `content`, which think.ts splits out.
  */
 type ReasoningPayload = {
   reasoning_content?: string | null;
@@ -101,23 +104,6 @@ type ReasoningPayload = {
 function readReasoning(payload: object | undefined): string {
   const p = payload as ReasoningPayload | undefined;
   return p?.reasoning_content ?? p?.reasoning ?? "";
-}
-
-/**
- * Splits inline <think>...</think> out of `content`, for servers that do not
- * parse it into its own field. A no-op when there are no tags.
- */
-export function splitThinking(text: string): {
-  thinking: string;
-  answer: string;
-} {
-  const match = text.match(/<think>([\s\S]*?)<\/think>/);
-  if (!match) return { thinking: "", answer: text.trim() };
-
-  return {
-    thinking: (match[1] ?? "").trim(),
-    answer: text.replace(match[0], "").trim(),
-  };
 }
 
 /** Full response, no streaming. */
@@ -146,7 +132,10 @@ export async function chat(
   // Prefer the dedicated field; fall back to inline tags.
   const { thinking, answer } = fielded
     ? { thinking: fielded, answer: raw.trim() }
-    : splitThinking(raw);
+    : splitThinking(raw, {
+        reasoningModel: familyOf(model).reasoning,
+        truncated: choice?.finish_reason === "length",
+      });
 
   return {
     content: answer,
@@ -174,13 +163,30 @@ export async function* chatStream(
     { signal: options.signal },
   );
 
+  // Inline <think> tags only matter when the server does not parse reasoning
+  // into its own field. Once that field shows up, content is pure answer.
+  const splitter = new ThinkSplitter({
+    implicitThinking: familyOf(model).reasoning,
+  });
+  let fielded = false;
+
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta;
     if (!delta) continue;
 
     const reasoning = readReasoning(delta);
-    if (reasoning) yield { kind: "reasoning", text: reasoning };
+    if (reasoning) {
+      fielded = true;
+      yield { kind: "reasoning", text: reasoning };
+    }
 
-    if (delta.content) yield { kind: "content", text: delta.content };
+    if (delta.content) {
+      if (fielded) yield { kind: "content", text: delta.content };
+      else yield* splitter.push(delta.content);
+    }
   }
+
+  // Flushes a partial tag held back, or reasoning cut off by the token budget.
+  // Returns nothing when the splitter never saw any content.
+  yield* splitter.end();
 }

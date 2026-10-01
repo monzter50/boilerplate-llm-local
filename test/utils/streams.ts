@@ -15,3 +15,15 @@ export async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   for await (const item of iterable) items.push(item);
   return items;
 }
+
+/**
+ * Every way to cut `text` in two, for checking that a parser copes with a token
+ * split at any position across network chunks.
+ */
+export function everyCut(text: string): [string, string][] {
+  const cuts: [string, string][] = [];
+  for (let i = 1; i < text.length; i++) {
+    cuts.push([text.slice(0, i), text.slice(i)]);
+  }
+  return cuts;
+}
