@@ -10,7 +10,12 @@
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true
+    "noEmit": true,
+    // Resolve workspace packages (contracts) to their TypeScript source.
+    "customConditions": ["source"],
+    // Forces `import type` for types, so a type-only import of the contracts
+    // can never turn into a runtime one by accident.
+    "verbatimModuleSyntax": true
   },
   // Tests included: the integration test mounts the server from ../src, so
   // `pnpm typecheck` checks the SDK against the real server types too.

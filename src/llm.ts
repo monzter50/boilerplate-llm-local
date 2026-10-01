@@ -1,14 +1,14 @@
 import OpenAI from "openai";
+import type { ChatChunk, ChatMessage } from "@ia-local/contracts";
 import { config } from "./config.js";
 import { familyOf, resolveParams } from "./harness.js";
 import { splitThinking, ThinkSplitter } from "./think.js";
 
 export { splitThinking } from "./think.js";
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
+// The message and chunk shapes are part of the HTTP contract, so they live in
+// packages/contracts. Re-exported so server code keeps importing them here.
+export type { ChatChunk, ChatMessage };
 
 /**
  * LM Studio exposes an OpenAI-compatible API, so we reuse the OpenAI SDK
@@ -82,12 +82,6 @@ export type ChatResult = {
   reasoning: string;
   /** "length" means the model ran out of tokens before finishing. */
   finishReason: string | null;
-};
-
-/** Stream event: reasoning tokens and answer tokens arrive interleaved. */
-export type ChatChunk = {
-  kind: "reasoning" | "content";
-  text: string;
 };
 
 /**

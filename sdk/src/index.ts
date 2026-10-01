@@ -2,61 +2,33 @@ import { parseSse } from "./sse.js";
 
 export { parseSse, type SseEvent } from "./sse.js";
 
-// These types mirror the server (src/llm.ts and chatBodySchema in src/app.ts).
-// They are copied rather than imported so the SDK does not depend on the
-// server's code or its dependencies.
+// The API contract lives in packages/contracts, shared with the server, so
+// the two cannot drift apart. Type-only on purpose: nothing from it is emitted
+// into the SDK's JavaScript, which keeps zod out of a browser bundle. ESLint
+// enforces it (see eslint.config.js).
+import type {
+  ChatChunk,
+  ChatRequest,
+  ChatResponse,
+  ErrorResponse,
+  HealthResponse,
+  ModelInfo,
+  ModelsResponse,
+  PromptsResponse,
+  RefreshModelResponse,
+  StreamError,
+} from "@ia-local/contracts";
 
-export type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
-
-/** Stream event: reasoning tokens and answer tokens arrive interleaved. */
-export type ChatChunk = {
-  kind: "reasoning" | "content";
-  text: string;
-};
-
-/** Body of POST /chat and POST /chat/stream. Send `message` or `messages`. */
-export type ChatRequest = {
-  /** Single-turn shortcut. */
-  message?: string;
-  /** Full conversation. The client owns the history: the server is stateless. */
-  messages?: ChatMessage[];
-  /** Raw system prompt text. Wins over promptId. */
-  system?: string;
-  /** Id of a prompts/*.md file, as listed by prompts(). */
-  promptId?: string;
-  temperature?: number;
-  maxTokens?: number;
-  model?: string;
-};
-
-/** How the server classifies a model (familyOf in src/harness.ts). */
-export type ModelInfo = {
-  id: string;
-  /** "reasoner", "reasoner-legacy" or "chat". */
-  family: string;
-  /** Thinks before answering: slower, better at math, code and logic. */
-  reasoning: boolean;
-  /** False for the original DeepSeek R1, which takes no system role. */
-  supportsSystem: boolean;
-};
-
-export type ChatResponse = {
-  answer: string;
-  /** Chain of thought, for reasoning models such as DeepSeek R1. */
-  reasoning?: string;
-  finishReason: string | null;
-  /** The model hit the token budget, possibly before writing any answer. */
-  truncated: boolean;
-  /** The model that answered. */
-  modelInfo: ModelInfo;
-};
-
-export type HealthResponse =
-  | { status: "ok"; model: string; info: ModelInfo; baseURL: string }
-  | { status: "unavailable"; error: string; baseURL?: string };
+export type {
+  ChatChunk,
+  ChatMessage,
+  ChatRequest,
+  ChatResponse,
+  ErrorResponse,
+  HealthResponse,
+  ModelInfo,
+  ValidationIssue,
+} from "@ia-local/contracts";
 
 export type RequestOptions = {
   /** Aborting also stops the generation on the server. */
@@ -94,17 +66,13 @@ export class ApiError extends Error {
   }
 }
 
-type ErrorBody = {
-  error?: string | { message?: string }[];
-  requestId?: string;
-};
-
 /**
  * The server answers errors as `{ error, requestId? }`, where `error` is a
  * string or, for a rejected body, the list of zod issues.
  */
 function toApiError(status: number, body: unknown): ApiError {
-  const { error, requestId } = (body ?? {}) as ErrorBody;
+  // Partial: a proxy in between can answer with something else entirely.
+  const { error, requestId } = (body ?? {}) as Partial<ErrorResponse>;
   const message = Array.isArray(error)
     ? error.map((issue) => issue.message).join("; ")
     : (error ?? `Request failed with status ${status}`);
@@ -174,7 +142,7 @@ export function createClient(options: ClientOptions = {}) {
 
     /** Models loaded in LM Studio. */
     async models(options: RequestOptions = {}): Promise<string[]> {
-      const res = await request<{ models: string[] }>(
+      const res = await request<ModelsResponse>(
         "GET",
         "/models",
         undefined,
@@ -185,7 +153,7 @@ export function createClient(options: ClientOptions = {}) {
 
     /** Models loaded in LM Studio, with what kind of model each one is. */
     async modelDetails(options: RequestOptions = {}): Promise<ModelInfo[]> {
-      const res = await request<{ details: ModelInfo[] }>(
+      const res = await request<ModelsResponse>(
         "GET",
         "/models",
         undefined,
@@ -196,7 +164,7 @@ export function createClient(options: ClientOptions = {}) {
 
     /** Re-resolves the active model, after swapping it in LM Studio. */
     async refreshModel(options: RequestOptions = {}): Promise<string> {
-      const res = await request<{ model: string }>(
+      const res = await request<RefreshModelResponse>(
         "POST",
         "/models/refresh",
         undefined,
@@ -207,7 +175,7 @@ export function createClient(options: ClientOptions = {}) {
 
     /** Ids of the system prompts in the server's prompts/ folder. */
     async prompts(options: RequestOptions = {}): Promise<string[]> {
-      const res = await request<{ prompts: string[] }>(
+      const res = await request<PromptsResponse>(
         "GET",
         "/prompts",
         undefined,
@@ -256,7 +224,7 @@ export function createClient(options: ClientOptions = {}) {
             return;
           case "error":
             // The status line already said 200, so the error came in the stream.
-            throw toApiError(500, JSON.parse(frame.data));
+            throw toApiError(500, JSON.parse(frame.data) as StreamError);
           case "shutdown":
             throw new ApiError(
               "The server shut down before the answer finished.",

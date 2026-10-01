@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { DEFAULT_PROMPT_ID, getPrompt, hasPrompt } from "./prompts.js";
+import type { ModelInfo } from "@ia-local/contracts";
 import type { ChatMessage } from "./llm.js";
 
 /** Last resort when there is neither SYSTEM_PROMPT nor prompts/default.md. */
@@ -47,12 +48,7 @@ export function familyOf(model: string): Family {
 }
 
 /** What clients are told about a model, so they can label it. */
-export type ModelInfo = {
-  id: string;
-  family: string;
-  reasoning: boolean;
-  supportsSystem: boolean;
-};
+export type { ModelInfo };
 
 export function describeModel(id: string): ModelInfo {
   const { name, reasoning, supportsSystem } = familyOf(id);

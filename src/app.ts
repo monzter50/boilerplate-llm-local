@@ -1,6 +1,17 @@
 import express, { type ErrorRequestHandler, type Response } from "express";
 import cors from "cors";
-import { z } from "zod";
+import {
+  chatRequestSchema,
+  type ChatChunk,
+  type ChatResponse,
+  type ErrorResponse,
+  type HealthResponse,
+  type ModelInfo,
+  type ModelsResponse,
+  type PromptsResponse,
+  type RefreshModelResponse,
+  type StreamError,
+} from "@ia-local/contracts";
 import { config } from "./config.js";
 import { buildMessages, describeModel } from "./harness.js";
 import { describeError, isAbortError, log } from "./log.js";
@@ -60,40 +71,28 @@ const onBodyError: ErrorRequestHandler = (error, req, res, next) => {
       path: req.path,
       message: error.message,
     });
-    res.status(400).json({ error: "Malformed JSON body." });
+    res
+      .status(400)
+      .json({ error: "Malformed JSON body." } satisfies ErrorResponse);
     return;
   }
   next(error);
 };
 app.use(onBodyError);
 
-const messageSchema = z.object({
-  role: z.enum(["system", "user", "assistant"]),
-  content: z.string(),
+/**
+ * The shared contract (packages/contracts) plus what only the server can
+ * check: whether the prompt file exists.
+ */
+const chatBodySchema = chatRequestSchema.superRefine((body, ctx) => {
+  if (body.promptId !== undefined && !hasPrompt(body.promptId)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["promptId"],
+      message: `Unknown prompt '${body.promptId}'. Available: ${listPrompts().join(", ")}`,
+    });
+  }
 });
-
-const chatBodySchema = z
-  .object({
-    /** Single-turn shortcut. */
-    message: z.string().min(1).optional(),
-    /** Full conversation, when the client keeps the history. */
-    messages: z.array(messageSchema).min(1).optional(),
-    /** Raw system prompt text. Wins over promptId. */
-    system: z.string().optional(),
-    /** Id of a prompts/*.md file, as listed by GET /prompts. */
-    promptId: z
-      .string()
-      .refine(hasPrompt, (id) => ({
-        message: `Unknown prompt '${id}'. Available: ${listPrompts().join(", ")}`,
-      }))
-      .optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    maxTokens: z.number().int().positive().optional(),
-    model: z.string().optional(),
-  })
-  .refine((body) => body.message || body.messages, {
-    message: "Provide either 'message' or 'messages'.",
-  });
 
 /**
  * Aborts the upstream generation when the client hangs up. "close" also fires
@@ -143,7 +142,7 @@ app.get("/health", async (_req, res) => {
         status: "unavailable",
         error: `Model '${model}' is not loaded in LM Studio. Loaded: ${models.join(", ") || "(none)"}.`,
         baseURL: config.baseURL,
-      });
+      } satisfies HealthResponse);
       return;
     }
 
@@ -152,12 +151,13 @@ app.get("/health", async (_req, res) => {
       model,
       info: describeModel(model),
       baseURL: config.baseURL,
-    });
+    } satisfies HealthResponse);
   } catch (error) {
     log.warn("health check failed", describeError(error));
-    res
-      .status(503)
-      .json({ status: "unavailable", error: (error as Error).message });
+    res.status(503).json({
+      status: "unavailable",
+      error: (error as Error).message,
+    } satisfies HealthResponse);
   }
 });
 
@@ -165,10 +165,15 @@ app.get("/models", async (_req, res) => {
   try {
     const models = await listModels();
     // `details` is additive: `models` keeps its shape for older clients.
-    res.json({ models, details: models.map(describeModel) });
+    res.json({
+      models,
+      details: models.map(describeModel),
+    } satisfies ModelsResponse);
   } catch (error) {
     log.error("GET /models failed", describeError(error));
-    res.status(503).json({ error: (error as Error).message });
+    res
+      .status(503)
+      .json({ error: (error as Error).message } satisfies ErrorResponse);
   }
 });
 
@@ -177,22 +182,26 @@ app.post("/models/refresh", async (_req, res) => {
   try {
     const model = await getModel({ refresh: true });
     log.info("model cache refreshed", { model });
-    res.json({ model });
+    res.json({ model } satisfies RefreshModelResponse);
   } catch (error) {
     log.error("POST /models/refresh failed", describeError(error));
-    res.status(503).json({ error: (error as Error).message });
+    res
+      .status(503)
+      .json({ error: (error as Error).message } satisfies ErrorResponse);
   }
 });
 
 app.get("/prompts", (_req, res) => {
-  res.json({ prompts: listPrompts() });
+  res.json({ prompts: listPrompts() } satisfies PromptsResponse);
 });
 
 app.post("/chat", async (req, res) => {
   const parsed = chatBodySchema.safeParse(req.body);
   if (!parsed.success) {
     log.warn("POST /chat rejected", { issues: parsed.error.issues });
-    res.status(400).json({ error: parsed.error.issues });
+    res
+      .status(400)
+      .json({ error: parsed.error.issues } satisfies ErrorResponse);
     return;
   }
 
@@ -223,7 +232,7 @@ app.post("/chat", async (req, res) => {
       // Reasoning models can burn the whole budget thinking and return nothing.
       truncated: result.finishReason === "length",
       modelInfo: describeModel(model),
-    });
+    } satisfies ChatResponse);
   } catch (error) {
     // Nobody is listening once the request was aborted, so there is nothing to
     // report and nothing went wrong.
@@ -236,7 +245,7 @@ app.post("/chat", async (req, res) => {
     res.status(500).json({
       error: (error as Error).message,
       requestId: currentRequestId(),
-    });
+    } satisfies ErrorResponse);
   }
 });
 
@@ -250,7 +259,9 @@ app.post("/chat/stream", async (req, res) => {
   const parsed = chatBodySchema.safeParse(req.body);
   if (!parsed.success) {
     log.warn("POST /chat/stream rejected", { issues: parsed.error.issues });
-    res.status(400).json({ error: parsed.error.issues });
+    res
+      .status(400)
+      .json({ error: parsed.error.issues } satisfies ErrorResponse);
     return;
   }
 
@@ -275,7 +286,8 @@ app.post("/chat/stream", async (req, res) => {
     // A named event, so clients that only read the default "message" frames
     // (EventSource semantics) never see it. It tells the UI which model is
     // answering and whether to expect reasoning frames.
-    res.write(`event: meta\ndata: ${JSON.stringify(describeModel(model))}\n\n`);
+    const meta: ModelInfo = describeModel(model);
+    res.write(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`);
 
     for await (const chunk of chatStream(messages, {
       temperature: parsed.data.temperature,
@@ -284,7 +296,7 @@ app.post("/chat/stream", async (req, res) => {
       signal: controller.signal,
     })) {
       if (clientGone) break;
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      res.write(`data: ${JSON.stringify(chunk satisfies ChatChunk)}\n\n`);
     }
 
     if (!clientGone) res.write("event: done\ndata: {}\n\n");
@@ -299,7 +311,7 @@ app.post("/chat/stream", async (req, res) => {
         `event: error\ndata: ${JSON.stringify({
           error: (error as Error).message,
           requestId: currentRequestId(),
-        })}\n\n`,
+        } satisfies StreamError)}\n\n`,
       );
     }
   } finally {
@@ -309,7 +321,9 @@ app.post("/chat/stream", async (req, res) => {
 });
 
 app.use((req, res) => {
-  res.status(404).json({ error: `No route for ${req.method} ${req.path}` });
+  res.status(404).json({
+    error: `No route for ${req.method} ${req.path}`,
+  } satisfies ErrorResponse);
 });
 
 /** Last resort: anything a route threw synchronously and did not handle. */
@@ -323,8 +337,9 @@ const onError: ErrorRequestHandler = (error, req, res, _next) => {
     res.end();
     return;
   }
-  res
-    .status(500)
-    .json({ error: "Internal server error.", requestId: currentRequestId() });
+  res.status(500).json({
+    error: "Internal server error.",
+    requestId: currentRequestId(),
+  } satisfies ErrorResponse);
 };
 app.use(onError);

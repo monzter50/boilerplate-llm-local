@@ -1,6 +1,9 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  // Workspace packages (contracts) resolve to their TypeScript source, as with
+  // `tsx --conditions=source` in dev, so tests never need a build first.
+  ssr: { resolve: { conditions: ["source"] } },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "sdk/src/**/*.test.ts"],

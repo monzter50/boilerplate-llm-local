@@ -20,6 +20,27 @@ export default tseslint.config(
     },
   },
   {
+    // The SDK may only use the contracts' types: a value import would ship
+    // zod to every browser that uses the SDK.
+    files: ["sdk/src/**/*.ts"],
+    ignores: ["sdk/src/**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@ia-local/contracts",
+              allowTypeImports: true,
+              message:
+                "Use `import type`: the SDK must not depend on zod at runtime.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     ...reactHooks.configs.flat["recommended-latest"],
     files: ["web/**/*.{ts,tsx}"],
     languageOptions: { globals: globals.browser },

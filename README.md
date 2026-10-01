@@ -108,10 +108,31 @@ Ignore every `reasoning` frame if you only want the answer.
 
 ## Clients
 
+### Contract
+
+`packages/contracts` (`@ia-local/contracts`) holds the zod schemas for every
+request and response, so the server and the SDK cannot drift apart.
+
+- **The server** validates request bodies with these schemas, and checks every
+  response against its type with `satisfies`. A contract change that the server
+  does not follow fails `pnpm typecheck`.
+- **The SDK** uses `import type` only, so none of it reaches the SDK's
+  JavaScript and zod never reaches a browser bundle. ESLint rejects a value
+  import there.
+- `promptId` is validated against `prompts/` on the server only, on top of the
+  shared schema, because only the server has those files.
+
+In dev, tests and typecheck, workspace packages resolve to their TypeScript
+source through a `source` export condition: `tsx --conditions=source`,
+`customConditions` in the tsconfigs, and `ssr.resolve.conditions` in vitest.
+Plain Node does not know that condition and loads `dist/` instead, which is why
+`pnpm build` builds the contracts before the server.
+
 ### SDK
 
-`sdk/` is a workspace package with no runtime dependencies. It uses `fetch`,
-so it runs in browsers and in Node 22+.
+`sdk/` is a workspace package. It has no runtime dependencies: it uses
+`fetch`, and its types come from the contract. It runs in browsers and in
+Node 22+.
 
 ```ts
 import { ApiError, createClient } from "@ia-local/sdk";
@@ -293,6 +314,7 @@ src/
   app.ts               the Express app: middleware, routes, validation
   server.ts            listen(), signal handling, graceful shutdown
   *.test.ts            vitest
+packages/contracts/    zod schemas and types of the HTTP API, shared by both sides
 sdk/src/
   index.ts             createClient(), ApiError, API types
   sse.ts               Server-Sent Events parser (EventSource cannot POST)

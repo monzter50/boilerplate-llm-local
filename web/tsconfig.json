@@ -12,6 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "noEmit": true,
+    "customConditions": ["source"],
     "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] }
   },
