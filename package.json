@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "description": "Chat local con DeepSeek servido por LM Studio (CLI + API HTTP + SDK + web)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monzter50/boilerplate-llm-local.git"
+  },
   "engines": {
     "node": ">=22"
   },

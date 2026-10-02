@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import {
   afterAll,
   beforeAll,
@@ -95,6 +96,22 @@ describe("GET /health", () => {
     await expect(response.json()).resolves.toMatchObject({
       status: "ok",
       model: "test-model",
+    });
+  });
+
+  it("reports the server version from package.json, up or down", async () => {
+    const { version } = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    ) as { version: string };
+
+    const up = await fetch(`${baseUrl}/health`);
+    await expect(up.json()).resolves.toMatchObject({ status: "ok", version });
+
+    mocks.listModels.mockRejectedValueOnce(new Error("Cannot reach LM Studio"));
+    const down = await fetch(`${baseUrl}/health`);
+    await expect(down.json()).resolves.toMatchObject({
+      status: "unavailable",
+      version,
     });
   });
 

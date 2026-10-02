@@ -115,12 +115,15 @@ export type StreamError = z.infer<typeof streamErrorSchema>;
 export const healthResponseSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("ok"),
+    /** Server version, for bug reports: "which version are you running?" */
+    version: z.string(),
     model: z.string(),
     info: modelInfoSchema,
     baseURL: z.string(),
   }),
   z.object({
     status: z.literal("unavailable"),
+    version: z.string(),
     error: z.string(),
     baseURL: z.string().optional(),
   }),

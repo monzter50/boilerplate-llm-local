@@ -28,7 +28,15 @@ const HEALTH_POLL_MS = 15_000;
 // a sentinel of its own.
 const DEFAULT = "__default";
 
-type Status = { health: HealthResponse; models?: ModelInfo[] };
+/**
+ * The server's answer, or the UI's own when the API itself cannot be reached:
+ * then there is no server to report a version.
+ */
+type Health =
+  | HealthResponse
+  | { status: "unavailable"; error: string; version?: undefined };
+
+type Status = { health: Health; models?: ModelInfo[] };
 
 /** Health, plus the model list when LM Studio is up. Never throws. */
 async function fetchStatus(): Promise<Status> {
@@ -58,7 +66,7 @@ export function Header() {
       streaming: s.streaming,
     })),
   );
-  const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [prompts, setPrompts] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -125,10 +133,16 @@ export function Header() {
             {health === null ? "checking" : ok ? "online" : "offline"}
           </Badge>
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs">
-          {health?.status === "ok"
-            ? `LM Studio at ${health.baseURL}`
-            : (health?.error ?? "Checking the API…")}
+        <TooltipContent className="max-w-xs space-y-1">
+          <p>
+            {health?.status === "ok"
+              ? `LM Studio at ${health.baseURL}`
+              : (health?.error ?? "Checking the API…")}
+          </p>
+          <p className="font-mono opacity-70">
+            web v{__APP_VERSION__}
+            {health?.version ? ` · server v${health.version}` : ""}
+          </p>
         </TooltipContent>
       </Tooltip>
 

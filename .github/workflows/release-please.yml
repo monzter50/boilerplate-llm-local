@@ -1,0 +1,26 @@
+name: Release
+
+# On every push to main, release-please updates one open "release PR" with the
+# next version of each package that changed and its CHANGELOG.md, worked out
+# from Conventional Commit messages. Merging that PR tags each released package
+# (server-v0.2.0, sdk-v0.2.0, ...) and creates its GitHub Release.
+#
+# Requires: Settings > Actions > General > "Allow GitHub Actions to create and
+# approve pull requests".
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

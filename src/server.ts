@@ -3,13 +3,14 @@ import { config } from "./config.js";
 import * as llm from "./llm.js";
 import { describeError, log } from "./log.js";
 import { listPrompts } from "./prompts.js";
+import { version } from "./version.js";
 
 const SHUTDOWN_GRACE_MS = 5_000;
 
 const { app, openStreams } = createApp({ llm, config });
 
 const server = app.listen(config.port, () => {
-  log.info(`API listening on http://localhost:${config.port}`);
+  log.info(`API v${version} listening on http://localhost:${config.port}`);
   log.info(`LM Studio at ${config.baseURL}`);
   log.info(`prompts: ${listPrompts().join(", ") || "(none)"}`);
 });

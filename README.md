@@ -354,3 +354,19 @@ history budget.
 
 `llm.ts` is the only file that knows about the model provider — swapping LM Studio
 for Ollama or a cloud endpoint is a change of `LMSTUDIO_BASE_URL`.
+
+## Versions, changelog and contributing
+
+Each package (server, `sdk`, `contracts`, `web`) has its own version,
+`CHANGELOG.md` and Git tag, and a release is cut by merging the release PR
+that [release-please](https://github.com/googleapis/release-please) keeps open.
+Both are driven by [Conventional Commit](https://www.conventionalcommits.org)
+PR titles. [CONTRIBUTING.md](CONTRIBUTING.md) covers the commit format, the
+checks a PR has to pass, and the release flow.
+
+To see what is running, `GET /health` returns the server's `version`, and the
+web chat shows the web and server versions in the health badge's tooltip.
+
+## License
+
+[MIT](LICENSE)

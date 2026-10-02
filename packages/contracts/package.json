@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "description": "Zod schemas and types for the IA-local HTTP API, shared by the server and the SDK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monzter50/boilerplate-llm-local.git",
+    "directory": "packages/contracts"
+  },
   "exports": {
     ".": {
       "source": "./src/index.ts",

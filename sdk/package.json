@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "description": "Typed client for the IA-local HTTP API",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monzter50/boilerplate-llm-local.git",
+    "directory": "sdk"
+  },
   "exports": {
     ".": "./src/index.ts"
   },

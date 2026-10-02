@@ -18,6 +18,7 @@ import {
 } from "@ia-local/contracts";
 import type { Config } from "./config.js";
 import { buildMessages, describeModel } from "./harness.js";
+import { version } from "./version.js";
 import { describeError, isAbortError, log } from "./log.js";
 import { hasPrompt, listPrompts } from "./prompts.js";
 import type { ChatMessage, ChatOptions, LlmPort } from "./llm.js";
@@ -207,6 +208,7 @@ export function createApp({ llm, config }: AppDeps) {
         });
         res.status(503).json({
           status: "unavailable",
+          version,
           error: `Model '${model}' is not loaded in LM Studio. Loaded: ${models.join(", ") || "(none)"}.`,
           baseURL: config.baseURL,
         } satisfies HealthResponse);
@@ -215,6 +217,7 @@ export function createApp({ llm, config }: AppDeps) {
 
       res.json({
         status: "ok",
+        version,
         model,
         info: describeModel(model),
         baseURL: config.baseURL,
@@ -223,6 +226,7 @@ export function createApp({ llm, config }: AppDeps) {
       log.warn("health check failed", describeError(error));
       res.status(503).json({
         status: "unavailable",
+        version,
         error: (error as Error).message,
       } satisfies HealthResponse);
     }
