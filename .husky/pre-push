@@ -1,0 +1,4 @@
+# The slower checks CI runs, before they cost a red build. Skip once with
+# `git push --no-verify`.
+pnpm typecheck
+pnpm test
