@@ -6,7 +6,12 @@ export default defineConfig({
   ssr: { resolve: { conditions: ["source"] } },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "sdk/src/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "sdk/src/**/*.test.ts",
+      // Plain-TS web modules only: no DOM, no "@/" alias.
+      "web/src/lib/**/*.test.ts",
+    ],
     // config.ts imports "dotenv/config", and dotenv does not overwrite values
     // that are already set — so setting them here makes the suite hermetic
     // whatever each developer happens to have in .env. Blank means "unset",

@@ -79,6 +79,14 @@ export type LlmPort = {
   chatStream: typeof chatStream;
 };
 
+/**
+ * Generations are never retried: a retry after a 120 s timeout means another
+ * 120 s of waiting on a server that is already struggling, and the user is
+ * better served by an error they can act on. MAX_RETRIES still applies to
+ * cheap calls such as models.list, through the client default.
+ */
+const GENERATION_RETRIES = 0;
+
 export type ChatOptions = {
   temperature?: number;
   maxTokens?: number;
@@ -127,7 +135,7 @@ export async function chat(
       max_tokens: params.maxTokens,
       stream: false,
     },
-    { signal: options.signal },
+    { signal: options.signal, maxRetries: GENERATION_RETRIES },
   );
 
   const choice = completion.choices[0];
@@ -165,7 +173,7 @@ export async function* chatStream(
       max_tokens: params.maxTokens,
       stream: true,
     },
-    { signal: options.signal },
+    { signal: options.signal, maxRetries: GENERATION_RETRIES },
   );
 
   // Inline <think> tags only matter when the server does not parse reasoning

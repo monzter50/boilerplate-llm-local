@@ -30,6 +30,32 @@ describe("familyOf", () => {
     });
   });
 
+  it("matches r1 only as a whole token of the id", () => {
+    // Ollama-style tags and LM Studio paths both count...
+    expect(familyOf("deepseek-r1:7b").name).toBe("reasoner-legacy");
+    expect(familyOf("lmstudio-community/r1-distill").name).toBe(
+      "reasoner-legacy",
+    );
+    // ...but "r1" inside another token does not.
+    expect(familyOf("my-model-r10").name).toBe("chat");
+    expect(familyOf("chr1s-7b-instruct").name).toBe("chat");
+  });
+
+  it("lets MODEL_FAMILIES override the heuristic, per model", () => {
+    const overrides = { "qwen/qwen3.5-9b": "reasoner" as const };
+
+    expect(familyOf("qwen/qwen3.5-9b", overrides)).toMatchObject({
+      name: "reasoner",
+      reasoning: true,
+    });
+    // Other models keep the heuristic: the override names one model only.
+    expect(familyOf("qwen2.5-7b-instruct", overrides).name).toBe("chat");
+    // And it can correct a false positive the other way, too.
+    expect(familyOf("deepseek-r1:7b", { "deepseek-r1:7b": "chat" }).name).toBe(
+      "chat",
+    );
+  });
+
   it("falls back to a plain chat family", () => {
     expect(familyOf("qwen2.5-7b-instruct")).toMatchObject({
       supportsSystem: true,

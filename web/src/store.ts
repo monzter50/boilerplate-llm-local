@@ -1,7 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ApiError, type ChatMessage, type ModelInfo } from "@ia-local/sdk";
+import {
+  ApiError,
+  type ChatChunk,
+  type ChatMessage,
+  type ModelInfo,
+} from "@ia-local/sdk";
 import { api } from "./api";
+import { createFrameBatcher } from "./lib/frameBatcher";
 
 export type MessageStatus = "streaming" | "done" | "error" | "stopped";
 
@@ -112,6 +118,23 @@ export const useChat = create<ChatState>()(
             return { thinkingMs };
           };
 
+          // Tokens are applied once per frame, not once each: a fast model
+          // would otherwise rebuild and re-render the list hundreds of times
+          // a second.
+          const tokens = createFrameBatcher<
+            ChatChunk & Pick<UiMessage, "thinkingMs">
+          >((batch) =>
+            patch(reply.id, (m) => {
+              let { content, reasoning, thinkingMs } = m;
+              for (const token of batch) {
+                if (token.kind === "content") content += token.text;
+                else reasoning += token.text;
+                thinkingMs = token.thinkingMs ?? thinkingMs;
+              }
+              return { content, reasoning, thinkingMs };
+            }),
+          );
+
           try {
             const stream = api.chatStream(
               { messages: toHistory(messages), model, promptId },
@@ -121,21 +144,21 @@ export const useChat = create<ChatState>()(
               },
             );
             for await (const chunk of stream) {
+              // Timing is measured when the token arrives, not when the frame
+              // that shows it runs.
               if (chunk.kind === "reasoning") {
                 thinkingSince ??= performance.now();
-                patch(reply.id, (m) => ({
-                  reasoning: m.reasoning + chunk.text,
-                }));
-              } else {
-                const timing = stopThinkingClock();
-                patch(reply.id, (m) => ({
-                  ...timing,
-                  content: m.content + chunk.text,
-                }));
               }
+              tokens.push({
+                ...chunk,
+                ...(chunk.kind === "content" ? stopThinkingClock() : {}),
+              });
             }
+            tokens.flush();
             patch(reply.id, () => ({ ...stopThinkingClock(), status: "done" }));
           } catch (error) {
+            // Show what arrived before the stream ended, then the outcome.
+            tokens.flush();
             if ((error as Error).name === "AbortError") {
               patch(reply.id, () => ({
                 ...stopThinkingClock(),

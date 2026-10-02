@@ -14,10 +14,10 @@ import {
   collect,
   deferred,
   fakeLlm,
-  sleep,
   startServer,
   streamOf,
   type TestServer,
+  untilAborted,
 } from "../../test/utils/index.js";
 import { ApiError, createClient, type Client } from "./index.js";
 import { parseSse } from "./sse.js";
@@ -211,8 +211,8 @@ describe("chatStream()", () => {
         once: true,
       });
       yield { kind: "content", text: "first" };
-      // Stands in for a slow model; the test aborts long before this ends.
-      await sleep(5_000);
+      // Stands in for a slow model; the test aborts long before it would end.
+      await untilAborted(options.signal);
       yield { kind: "content", text: "never sent" };
     });
 

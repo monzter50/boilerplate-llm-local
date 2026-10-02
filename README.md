@@ -212,7 +212,9 @@ CLI and the HTTP API go through it, so they cannot drift apart. It owns:
 - **Model-family quirks.** Reasoning models want a lower temperature than chat
   models, and the original DeepSeek R1 wanted _no_ system role at all —
   instructions had to be folded into the user turn. R1-0528 added system prompt
-  support, so the two generations are detected separately by `familyOf()`.
+  support, so the two generations are detected separately by `familyOf()`. It
+  guesses from the model id, and `MODEL_FAMILIES` in `.env` overrides the
+  guess per model when it is wrong.
 - **Context budget.** `trimHistory()` drops the oldest turns once the system
   prompt plus the conversation exceed `HISTORY_BUDGET` characters.
   - It never drops the turn being answered.
@@ -266,6 +268,15 @@ What is reported and how:
 - **Timeouts.** `REQUEST_TIMEOUT_MS` (2 minutes) and `MAX_RETRIES` (1) are
   passed to the OpenAI SDK, whose own defaults are 10 minutes and 2 retries — a
   hung LM Studio would otherwise hold a request open for the whole of it.
+  Generations are never retried, though: a retry after a timeout would mean
+  another 2 minutes of waiting. `MAX_RETRIES` only covers cheap calls such as
+  listing models.
+- **Concurrency.** LM Studio serves one generation at a time, so while one is
+  running, `/chat` and `/chat/stream` answer `429` at once instead of queueing
+  until a timeout. The limit is `MAX_CONCURRENT_GENERATIONS` (1; 0 means no
+  limit). The slot is released however the generation ends: done, failed, or
+  the client hanging up. The CLI talks to LM Studio directly, so it is not
+  counted.
 - **Cancellation.** A client that hangs up aborts the upstream generation
   through an `AbortSignal`, so LM Studio stops producing tokens nobody will
   read. Cancellations are logged at `debug`, not as errors: they are the
@@ -326,8 +337,8 @@ web/src/
   store.ts             chat state: history, streaming, persistence
   components/          Header, MessageList, Message, Composer
   components/ui/       shadcn/ui components
-test/utils/            helpers shared by every test: startServer, collect,
-                       streamOf, deferred, sleep
+test/utils/            helpers shared by every test: startServer, fakeLlm,
+                       collect, streamOf, everyCut, deferred, untilAborted
 ```
 
 `app.ts` exports `createApp({ llm, config })` and `server.ts` wires the real

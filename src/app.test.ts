@@ -10,9 +10,9 @@ import {
 import {
   deferred,
   fakeLlm,
-  sleep,
   startServer,
   type TestServer,
+  untilAborted,
 } from "../test/utils/index.js";
 import { createApp } from "./app.js";
 import { config } from "./config.js";
@@ -193,7 +193,7 @@ describe("POST /chat/stream", () => {
       yield { kind: "content", text: "first" };
 
       // Stays open until the test hangs up, standing in for a slow model.
-      await sleep(5_000);
+      await untilAborted(options.signal);
       yield { kind: "content", text: "never sent" };
     });
 
@@ -211,5 +211,142 @@ describe("POST /chat/stream", () => {
 
     await expect(aborted.promise).resolves.toBeUndefined();
     expect(captured?.aborted).toBe(true);
+  });
+});
+
+describe("concurrent generations", () => {
+  /** A stream that stays open until the returned function is called. */
+  function holdStreamOpen(): () => void {
+    const gate = deferred();
+    mocks.chatStream.mockImplementationOnce(
+      async function* (): AsyncGenerator<ChatChunk> {
+        yield { kind: "content", text: "working" };
+        await gate.promise;
+      },
+    );
+    return gate.resolve;
+  }
+
+  it("turns a second generation away with 429 while one is running", async () => {
+    const finish = holdStreamOpen();
+    const first = await post("/chat/stream", { message: "one" });
+    const reader = first.body!.getReader();
+    await reader.read(); // the first generation is now running
+
+    const second = await post("/chat", { message: "two" });
+    expect(second.status).toBe(429);
+    await expect(second.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/busy/),
+    });
+    expect((await post("/chat/stream", { message: "two" })).status).toBe(429);
+
+    finish();
+    while (!(await reader.read()).done);
+
+    // Once the first one ends, the slot is free again.
+    mocks.chat.mockResolvedValue({
+      content: "ok",
+      reasoning: "",
+      finishReason: "stop",
+    });
+    expect((await post("/chat", { message: "three" })).status).toBe(200);
+  });
+
+  it("frees the slot when a generation fails", async () => {
+    mocks.chat.mockRejectedValueOnce(new Error("model crashed"));
+    expect((await post("/chat", { message: "one" })).status).toBe(500);
+
+    mocks.chat.mockResolvedValueOnce({
+      content: "ok",
+      reasoning: "",
+      finishReason: "stop",
+    });
+    expect((await post("/chat", { message: "two" })).status).toBe(200);
+  });
+
+  it("frees the slot when the client hangs up mid-stream", async () => {
+    const aborted = deferred();
+    mocks.chatStream.mockImplementationOnce(async function* (
+      _messages: ChatMessage[],
+      options: ChatOptions = {},
+    ): AsyncGenerator<ChatChunk> {
+      options.signal?.addEventListener("abort", () => aborted.resolve(), {
+        once: true,
+      });
+      yield { kind: "content", text: "first" };
+      await untilAborted(options.signal);
+    });
+
+    const controller = new AbortController();
+    const response = await post(
+      "/chat/stream",
+      { message: "hi" },
+      { signal: controller.signal },
+    );
+    await response.body!.getReader().read();
+    controller.abort();
+    await aborted.promise;
+
+    mocks.chat.mockResolvedValue({
+      content: "ok",
+      reasoning: "",
+      finishReason: "stop",
+    });
+    // The release runs right after the abort settles on the server.
+    await vi.waitFor(async () => {
+      expect((await post("/chat", { message: "again" })).status).toBe(200);
+    });
+  });
+
+  it("does not limit anything with MAX_CONCURRENT_GENERATIONS=0", async () => {
+    const llm = fakeLlm();
+    const gate = deferred();
+    llm.chatStream.mockImplementation(
+      async function* (): AsyncGenerator<ChatChunk> {
+        yield { kind: "content", text: "working" };
+        await gate.promise;
+      },
+    );
+    const unlimited = await startServer(
+      createApp({ llm, config: { ...config, maxConcurrentGenerations: 0 } })
+        .app,
+    );
+    try {
+      const open = (message: string) =>
+        fetch(`${unlimited.baseUrl}/chat/stream`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+      const [a, b] = await Promise.all([open("one"), open("two")]);
+      expect([a.status, b.status]).toEqual([200, 200]);
+      gate.resolve();
+      await Promise.all([a.text(), b.text()]);
+    } finally {
+      await unlimited.close();
+    }
+  });
+});
+
+describe("POST /chat/stream before the stream starts", () => {
+  it("answers a real 500 when the model cannot be resolved", async () => {
+    mocks.getModel.mockRejectedValueOnce(new Error("Cannot reach LM Studio"));
+
+    const response = await post("/chat/stream", { message: "hi" });
+
+    // Not a 200 SSE stream carrying an error event: nothing was streamed yet.
+    expect(response.status).toBe(500);
+    expect(response.headers.get("content-type")).toMatch(/application\/json/);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Cannot reach LM Studio",
+    });
+
+    // And the slot it took was given back.
+    mocks.chat.mockResolvedValueOnce({
+      content: "ok",
+      reasoning: "",
+      finishReason: "stop",
+    });
+    expect((await post("/chat", { message: "again" })).status).toBe(200);
   });
 });

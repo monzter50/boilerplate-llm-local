@@ -5,7 +5,7 @@ import {
   fakeCompletionStream,
   type FakeDelta,
 } from "../test/utils/index.js";
-import { chatStream, client, splitThinking } from "./llm.js";
+import { chat, chatStream, client, splitThinking } from "./llm.js";
 import { joinChunks } from "./think.js";
 
 const R1 = "deepseek-r1-distill-qwen-7b";
@@ -168,5 +168,31 @@ describe("chatStream inline <think>", () => {
       thinking: "hmm",
       answer: "Close it with </think>.",
     });
+  });
+});
+
+describe("retries", () => {
+  it("never retries a generation, so a timeout is not paid twice", async () => {
+    const create = vi
+      .spyOn(client.chat.completions, "create")
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: "hi" }, finish_reason: "stop" }],
+      } as never)
+      .mockResolvedValueOnce(fakeCompletionStream(contents("hi")) as never);
+
+    await chat([{ role: "user", content: "hi" }], { model: CHAT });
+    await collect(
+      chatStream([{ role: "user", content: "hi" }], { model: CHAT }),
+    );
+
+    for (const call of create.mock.calls) {
+      expect(call[1]).toMatchObject({ maxRetries: 0 });
+    }
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the client default for cheap calls such as models.list", () => {
+    // MAX_RETRIES is unset in the test env, so the default of 1 applies.
+    expect(client.maxRetries).toBe(1);
   });
 });

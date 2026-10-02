@@ -1,4 +1,4 @@
-import { config } from "./config.js";
+import { config, type FamilyName } from "./config.js";
 import { DEFAULT_PROMPT_ID, getPrompt, hasPrompt } from "./prompts.js";
 import type { ModelInfo } from "@ia-local/contracts";
 import type { ChatMessage } from "./llm.js";
@@ -14,7 +14,7 @@ const FALLBACK_SYSTEM_PROMPT =
  * system prompt support, so the two generations need different handling.
  */
 export type Family = {
-  name: string;
+  name: FamilyName;
   /** Thinks before answering: slower, better at math, code and logic. */
   reasoning: boolean;
   supportsSystem: boolean;
@@ -22,29 +22,48 @@ export type Family = {
   temperature: number;
 };
 
-export function familyOf(model: string): Family {
-  if (/r1-0528|qwq/i.test(model)) {
-    return {
-      name: "reasoner",
-      reasoning: true,
-      supportsSystem: true,
-      temperature: 0.6,
-    };
-  }
-  if (/r1|reasoner|thinking/i.test(model)) {
-    return {
-      name: "reasoner-legacy",
-      reasoning: true,
-      supportsSystem: false,
-      temperature: 0.6,
-    };
-  }
-  return {
+const FAMILIES: Record<FamilyName, Family> = {
+  reasoner: {
+    name: "reasoner",
+    reasoning: true,
+    supportsSystem: true,
+    temperature: 0.6,
+  },
+  "reasoner-legacy": {
+    name: "reasoner-legacy",
+    reasoning: true,
+    supportsSystem: false,
+    temperature: 0.6,
+  },
+  chat: {
     name: "chat",
     reasoning: false,
     supportsSystem: true,
     temperature: 0.7,
-  };
+  },
+};
+
+// "r1" only as a whole token of the id: "deepseek-r1-distill" and
+// "deepseek-r1:7b" match, "model-r10" and "hr1" do not.
+const R1 = /(?:^|[^a-z0-9])r1(?:[^a-z0-9]|$)/i;
+
+/**
+ * Guesses the family from the model id, unless MODEL_FAMILIES names it: a
+ * name heuristic is bound to miss some models, and the override is the way
+ * out without a code change.
+ */
+export function familyOf(
+  model: string,
+  overrides: Record<string, FamilyName> = config.modelFamilies,
+): Family {
+  const override = overrides[model];
+  if (override) return FAMILIES[override];
+
+  if (/r1-0528|qwq/i.test(model)) return FAMILIES.reasoner;
+  if (R1.test(model) || /reasoner|thinking/i.test(model)) {
+    return FAMILIES["reasoner-legacy"];
+  }
+  return FAMILIES.chat;
 }
 
 /** What clients are told about a model, so they can label it. */

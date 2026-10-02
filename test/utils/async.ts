@@ -14,6 +14,17 @@ export function deferred<T = void>(): {
   return { promise, resolve };
 }
 
-/** Resolves after `ms`; stands in for a slow model in stream tests. */
-export const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Never resolves; rejects with an AbortError once `signal` aborts. Stands in
+ * for a slow model in fakes, behaving like the real client, which stops as
+ * soon as the request is aborted. A fake that ignores the signal would keep
+ * the generation (and its concurrency slot) alive after the client left.
+ */
+export function untilAborted(signal: AbortSignal | undefined): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    const abort = () =>
+      reject(new DOMException("The operation was aborted.", "AbortError"));
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+  });
+}

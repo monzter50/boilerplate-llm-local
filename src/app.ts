@@ -1,4 +1,8 @@
-import express, { type ErrorRequestHandler, type Response } from "express";
+import express, {
+  type ErrorRequestHandler,
+  type Request,
+  type Response,
+} from "express";
 import cors from "cors";
 import {
   chatRequestSchema,
@@ -16,7 +20,7 @@ import type { Config } from "./config.js";
 import { buildMessages, describeModel } from "./harness.js";
 import { describeError, isAbortError, log } from "./log.js";
 import { hasPrompt, listPrompts } from "./prompts.js";
-import type { LlmPort } from "./llm.js";
+import type { ChatMessage, ChatOptions, LlmPort } from "./llm.js";
 import {
   bindRequestContext,
   currentRequestId,
@@ -105,6 +109,35 @@ const onError: ErrorRequestHandler = (error, req, res, _next) => {
     requestId: currentRequestId(),
   } satisfies ErrorResponse);
 };
+
+type PreparedChat = {
+  model: string;
+  messages: ChatMessage[];
+  options: Omit<ChatOptions, "signal">;
+  /** Frees the generation slot. Safe to call more than once. */
+  release: () => void;
+};
+
+/**
+ * Caps concurrent generations without queueing: a request over the limit is
+ * turned away at once (429) rather than waiting in LM Studio's queue until it
+ * times out. `max` 0 means no limit.
+ */
+function createLimiter(max: number) {
+  let active = 0;
+  return {
+    tryAcquire(): (() => void) | null {
+      if (max > 0 && active >= max) return null;
+      active++;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        active--;
+      };
+    },
+  };
+}
 
 /**
  * Builds the Express app around its dependencies, so tests can hand it a fake
@@ -229,33 +262,78 @@ export function createApp({ llm, config }: AppDeps) {
     res.json({ prompts: listPrompts() } satisfies PromptsResponse);
   });
 
-  app.post("/chat", async (req, res) => {
+  const generations = createLimiter(config.maxConcurrentGenerations);
+
+  /**
+   * Shared by /chat and /chat/stream: validates the body, takes a generation
+   * slot, resolves the model and builds the messages. Answers 400 or 429
+   * itself and returns null. Otherwise the caller must call `release()` when
+   * the generation ends, however it ends.
+   */
+  async function prepareChat(
+    req: Request,
+    res: Response,
+    route: string,
+  ): Promise<PreparedChat | null> {
     const parsed = chatBodySchema.safeParse(req.body);
     if (!parsed.success) {
-      log.warn("POST /chat rejected", { issues: parsed.error.issues });
+      log.warn(`${route} rejected`, { issues: parsed.error.issues });
       res
         .status(400)
         .json({ error: parsed.error.issues } satisfies ErrorResponse);
-      return;
+      return null;
     }
 
-    const controller = abortOnDisconnect(res, () => {
-      log.info("client hung up, generation stopped");
-    });
+    const release = generations.tryAcquire();
+    if (!release) {
+      log.warn(`${route} rejected: a generation is already running`, {
+        limit: config.maxConcurrentGenerations,
+      });
+      res.status(429).json({
+        error:
+          "LM Studio is busy with another answer. Try again when it finishes.",
+      } satisfies ErrorResponse);
+      return null;
+    }
 
     try {
-      const model = parsed.data.model ?? (await llm.getModel());
-      const result = await llm.chat(buildMessages({ ...parsed.data, model }), {
-        temperature: parsed.data.temperature,
-        maxTokens: parsed.data.maxTokens,
+      const body = parsed.data;
+      const model = body.model ?? (await llm.getModel());
+      return {
         model,
+        messages: buildMessages({ ...body, model }),
+        options: {
+          temperature: body.temperature,
+          maxTokens: body.maxTokens,
+          model,
+        },
+        release,
+      };
+    } catch (error) {
+      release();
+      throw error;
+    }
+  }
+
+  app.post("/chat", async (req, res) => {
+    let chat: PreparedChat | null = null;
+
+    try {
+      chat = await prepareChat(req, res, "POST /chat");
+      if (!chat) return;
+
+      const controller = abortOnDisconnect(res, () => {
+        log.info("client hung up, generation stopped");
+      });
+      const result = await llm.chat(chat.messages, {
+        ...chat.options,
         signal: controller.signal,
       });
 
       if (result.finishReason === "length") {
         log.warn("answer truncated: the model hit the token budget", {
-          model,
-          maxTokens: parsed.data.maxTokens ?? config.maxTokens,
+          model: chat.model,
+          maxTokens: chat.options.maxTokens ?? config.maxTokens,
         });
       }
 
@@ -265,7 +343,7 @@ export function createApp({ llm, config }: AppDeps) {
         finishReason: result.finishReason,
         // Reasoning models can burn the whole budget thinking and return nothing.
         truncated: result.finishReason === "length",
-        modelInfo: describeModel(model),
+        modelInfo: describeModel(chat.model),
       } satisfies ChatResponse);
     } catch (error) {
       // Nobody is listening once the request was aborted, so there is nothing to
@@ -280,6 +358,8 @@ export function createApp({ llm, config }: AppDeps) {
         error: (error as Error).message,
         requestId: currentRequestId(),
       } satisfies ErrorResponse);
+    } finally {
+      chat?.release();
     }
   });
 
@@ -290,43 +370,37 @@ export function createApp({ llm, config }: AppDeps) {
    * is "reasoning".
    */
   app.post("/chat/stream", async (req, res) => {
-    const parsed = chatBodySchema.safeParse(req.body);
-    if (!parsed.success) {
-      log.warn("POST /chat/stream rejected", { issues: parsed.error.issues });
-      res
-        .status(400)
-        .json({ error: parsed.error.issues } satisfies ErrorResponse);
-      return;
-    }
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.flushHeaders();
-    openStreams.add(res);
-
-    // Disconnect must be watched on the response, not the request: `req` emits
-    // "close" as soon as the body has been consumed, which is immediately.
+    let chat: PreparedChat | null = null;
     let clientGone = false;
-    const controller = abortOnDisconnect(res, () => {
-      clientGone = true;
-      log.info("client disconnected mid-stream, generation stopped");
-    });
 
     try {
-      const model = parsed.data.model ?? (await llm.getModel());
-      const messages = buildMessages({ ...parsed.data, model });
+      // Before the SSE headers: a bad body, a busy server or an unreachable
+      // LM Studio still get a real status code instead of a 200 stream.
+      chat = await prepareChat(req, res, "POST /chat/stream");
+      if (!chat) return;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+      openStreams.add(res);
+
+      // Disconnect must be watched on the response, not the request: `req`
+      // emits "close" as soon as the body has been consumed, which is
+      // immediately.
+      const controller = abortOnDisconnect(res, () => {
+        clientGone = true;
+        log.info("client disconnected mid-stream, generation stopped");
+      });
 
       // A named event, so clients that only read the default "message" frames
       // (EventSource semantics) never see it. It tells the UI which model is
       // answering and whether to expect reasoning frames.
-      const meta: ModelInfo = describeModel(model);
+      const meta: ModelInfo = describeModel(chat.model);
       res.write(`event: meta\ndata: ${JSON.stringify(meta)}\n\n`);
 
-      for await (const chunk of llm.chatStream(messages, {
-        temperature: parsed.data.temperature,
-        maxTokens: parsed.data.maxTokens,
-        model,
+      for await (const chunk of llm.chatStream(chat.messages, {
+        ...chat.options,
         signal: controller.signal,
       })) {
         if (clientGone) break;
@@ -337,6 +411,14 @@ export function createApp({ llm, config }: AppDeps) {
     } catch (error) {
       if (clientGone || isAbortError(error)) {
         log.debug("stream aborted before it finished");
+      } else if (!res.headersSent) {
+        // Failed before the stream started, e.g. LM Studio unreachable while
+        // resolving the model: a plain JSON error still fits.
+        log.error("POST /chat/stream failed", describeError(error));
+        res.status(500).json({
+          error: (error as Error).message,
+          requestId: currentRequestId(),
+        } satisfies ErrorResponse);
       } else {
         // The status line went out with the headers, so the error can only be
         // reported inside the stream — and on the console, or it is invisible.
@@ -349,8 +431,9 @@ export function createApp({ llm, config }: AppDeps) {
         );
       }
     } finally {
+      chat?.release();
       openStreams.delete(res);
-      res.end();
+      if (!res.writableEnded) res.end();
     }
   });
 
