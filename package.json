@@ -1,6 +1,6 @@
 {
   "name": "ia-local",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Chat local con DeepSeek servido por LM Studio (CLI + API HTTP + SDK + web)",
