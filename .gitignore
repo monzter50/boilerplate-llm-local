@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
+
+# Personal Claude Code settings; the shared ones are .claude/settings.json
+.claude/settings.local.json

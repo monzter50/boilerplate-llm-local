@@ -26,6 +26,30 @@ pnpm test
 
 Reusable test helpers go in `test/utils/`, not inline in a test file.
 
+### Git hooks
+
+`pnpm install` sets up [husky](https://typicode.github.io/husky) hooks that run
+most of these checks for you:
+
+| Hook         | Runs                                                     | Time       |
+| ------------ | -------------------------------------------------------- | ---------- |
+| `pre-commit` | ESLint `--fix` and Prettier on the **staged** files only | ~1 s       |
+| `commit-msg` | commitlint: the message must be a Conventional Commit    | instant    |
+| `pre-push`   | `pnpm typecheck` and `pnpm test`                         | a few secs |
+
+- Fixes made by the pre-commit hook are added to the commit automatically. An
+  error it cannot fix, such as an unused variable, stops the commit.
+- To skip the hooks once, use `git commit --no-verify` or
+  `git push --no-verify`. To turn them off entirely, set `HUSKY=0`.
+- CI runs every check anyway, so the hooks only save you a round trip.
+
+The commit rules live in `commitlint.config.js`. Keep its types and scopes in
+sync with `.github/workflows/pr-title.yml`.
+
+If you use Claude Code, `CLAUDE.md` gives it the same commit conventions. A
+project hook in `.claude/settings.json` also stops it from bypassing these
+hooks (`--no-verify`, `git commit -n`, `HUSKY=0`, a changed `core.hooksPath`).
+
 ## Commit messages and PR titles
 
 Pull requests are **squash-merged**, so the PR title becomes the commit on
@@ -58,6 +82,50 @@ feat(sdk): add retry option to chatStream
 fix(server): release the generation slot when the model cannot be resolved
 feat(contracts)!: rename modelInfo to answeredBy in ChatResponse
 ```
+
+## Opening a pull request
+
+1. **Branch from an up-to-date `main`.** If you don't have write access, fork
+   the repository first and branch in your fork. Name the branch
+   `<type>/<short-topic>`, for example `feat/sdk-retry` or
+   `fix/stream-slot-release`.
+
+   ```bash
+   git switch main && git pull
+   git switch -c feat/sdk-retry
+   ```
+
+2. **Commit** in small Conventional Commits. The hooks format, lint and check
+   each message as you go.
+
+3. **Push.** The pre-push hook runs typecheck and tests first.
+
+   ```bash
+   git push -u origin feat/sdk-retry
+   ```
+
+4. **Open the PR against `main`**, on GitHub or with the
+   [GitHub CLI](https://cli.github.com):
+
+   ```bash
+   gh pr create --base main --title "feat(sdk): add retry option to chatStream"
+   ```
+
+   - The title must be a Conventional Commit; the "PR title" check fails
+     otherwise. Fixing the title re-runs it, with no new commit needed.
+   - Fill in the template: what and why, the packages touched, how you tested
+     it, and any breaking change.
+   - Open it as a draft (`gh pr create --draft`) if it isn't ready for review.
+
+5. **Get CI green and a review.** Push fixes to the same branch. Don't
+   force-push once review has started, so reviewers can see what changed.
+
+6. **Squash merge.** The PR title becomes the single commit on `main`, so
+   re-read it before merging. Then delete the branch.
+
+Keep a PR to one change. Two unrelated fixes are two PRs, and two changelog
+entries. Never edit versions or `CHANGELOG.md` files in a PR: release-please
+owns them.
 
 ## Versions and releases
 
