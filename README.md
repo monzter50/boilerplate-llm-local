@@ -34,6 +34,8 @@ pnpm cli       # terminal chat
 pnpm dev       # HTTP API on http://localhost:3000 (watch mode)
 pnpm web       # web chat on http://localhost:5173 (needs the API running)
 pnpm dev:all   # API and web chat together
+pnpm commit    # draft a commit message for staged changes with the local model
+pnpm pr        # draft, then push and open a PR for the current branch
 ```
 
 > `pnpm server` does **not** work: `server` is a built-in pnpm command that

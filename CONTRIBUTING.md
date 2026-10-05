@@ -127,6 +127,30 @@ Keep a PR to one change. Two unrelated fixes are two PRs, and two changelog
 entries. Never edit versions or `CHANGELOG.md` files in a PR: release-please
 owns them.
 
+### Drafting with your local model
+
+`pnpm commit` and `pnpm pr` draft commit messages and PRs with the model you
+have loaded in LM Studio. Nothing is committed, pushed or opened until you
+confirm, and the husky hooks still run.
+
+```bash
+git add -p
+pnpm commit              # draft → [y]es / [e]dit / [n]o → git commit
+pnpm pr --draft          # run checks → draft → confirm → push → gh pr create
+pnpm commit --dry-run    # only print the message (also: pnpm pr --dry-run)
+```
+
+- **Rules come from `commitlint.config.js`**, the same as the hook. A draft
+  that fails is sent back to the model with commitlint's errors, up to three
+  times.
+- **The model writes only the prose:** the title, "What and why" and breaking
+  changes. The packages touched, the real check results and the checklist ticks
+  come from the script, so the PR never claims tests that did not run.
+- **Read the draft before confirming.** An 8B model can invent details that are
+  not in the diff, for example naming a tool the change does not use.
+- It takes 40–110 seconds per draft on a laptop. Set `GIT_ASSIST_MODEL` in
+  `.env` to pick a different loaded model.
+
 ## Versions and releases
 
 Each package has its own version, tag and `CHANGELOG.md`:
