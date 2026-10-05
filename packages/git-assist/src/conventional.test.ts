@@ -76,7 +76,10 @@ describe("cleanModelOutput", () => {
 });
 
 describe("enforceScope", () => {
-  const allowed = ["server", "sdk", "contracts", "web", "deps", "release"];
+  const allowed = {
+    types: ["feat", "fix", "docs", "test", "build", "chore"],
+    scopes: ["server", "sdk", "contracts", "web", "deps", "release"],
+  };
 
   it("replaces an invented scope with the one from the paths", () => {
     // The header that failed the commit-msg hook in a real run.
@@ -99,7 +102,23 @@ describe("enforceScope", () => {
     expect(enforceScope("build(deps): bump zod", allowed, "server")).toBe(
       "build(deps): bump zod",
     );
-    expect(enforceScope("feat(api): x", [], "web")).toBe("feat(api): x");
+    expect(enforceScope("feat(api): x", { types: [], scopes: [] }, "web")).toBe(
+      "feat(api): x",
+    );
+  });
+
+  it("turns a type used as the scope into the type", () => {
+    // The header a real run drafted for README-only changes in four packages.
+    expect(
+      enforceScope(
+        "feat(docs): add package list and API versioning\n\nBody stays.",
+        allowed,
+        undefined,
+      ),
+    ).toBe("docs: add package list and API versioning\n\nBody stays.");
+    expect(enforceScope("chore(test)!: x", allowed, "sdk")).toBe(
+      "test(sdk)!: x",
+    );
   });
 });
 

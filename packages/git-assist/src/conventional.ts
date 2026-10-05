@@ -116,18 +116,22 @@ export function cleanModelOutput(text: string): string {
  * code decides it: models invent plausible scopes and retrying with
  * commitlint's error does not reliably stop them. When the repo allows any
  * scope, the model's choice stands.
+ *
+ * A scope that is really a type ("feat(docs)", "chore(test)") is the model
+ * putting the type in the wrong slot, so it becomes the type.
  */
 export function enforceScope(
   message: string,
-  allowed: string[],
+  rules: Pick<CommitRules, "types" | "scopes">,
   hint: string | undefined,
 ): string {
-  if (allowed.length === 0) return message;
+  if (rules.scopes.length === 0) return message;
   return message.replace(
     /^(\w+)\(([^)]*)\)(!?):/,
     (header, type: string, scope: string, bang: string) => {
-      if (allowed.includes(scope)) return header;
-      return hint ? `${type}(${hint})${bang}:` : `${type}${bang}:`;
+      if (rules.scopes.includes(scope)) return header;
+      const fixedType = rules.types.includes(scope) ? scope : type;
+      return hint ? `${fixedType}(${hint})${bang}:` : `${fixedType}${bang}:`;
     },
   );
 }

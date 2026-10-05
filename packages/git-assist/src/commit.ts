@@ -82,8 +82,7 @@ export async function runCommit(
     result = await generateValid({
       prompt,
       ask: askModel,
-      parse: (answer) =>
-        enforceScope(cleanModelOutput(answer), rules.scopes, scope),
+      parse: (answer) => enforceScope(cleanModelOutput(answer), rules, scope),
       validate: rules.lint,
       show: (message) => message,
       onAttempt: (n, attempt) => {

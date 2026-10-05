@@ -12,6 +12,18 @@ And two clients sit on top of the API:
 - a **typed SDK** (`sdk/`, `@ia-local/sdk`) for any TypeScript app
 - a **web chat** (`web/`, React + shadcn/ui) built on that SDK
 
+## Packages
+
+Each package has its own version, changelog and documentation:
+
+| Package                                                 | What it is                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| server (this README)                                    | the HTTP API and terminal chat, in `src/`                    |
+| [`@ia-local/contracts`](packages/contracts/README.md)   | zod schemas of the API, shared by server and SDK             |
+| [`@ia-local/sdk`](sdk/README.md)                        | typed, dependency-free client for the API                    |
+| [`web`](web/README.md)                                  | the chat UI                                                  |
+| [`@ia-local/git-assist`](packages/git-assist/README.md) | drafts commits and PRs with a local model, in any repository |
+
 ## Requirements
 
 - Node.js 22+ and pnpm

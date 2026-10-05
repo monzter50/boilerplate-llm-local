@@ -140,7 +140,7 @@ export async function runPr(
         const draft = parsePrDraft(answer);
         return {
           ...draft,
-          title: enforceScope(draft.title, rules.scopes, scope),
+          title: enforceScope(draft.title, rules, scope),
         };
       },
       validate: async (draft) => {

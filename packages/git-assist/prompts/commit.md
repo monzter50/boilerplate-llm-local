@@ -28,6 +28,6 @@ Rules:
 
 Example:
 
-fix(api): release the connection when the request is cancelled
+fix(server): release the connection when the request is cancelled
 
 The connection stayed open after a cancel, so later requests queued behind it.
