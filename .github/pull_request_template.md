@@ -16,6 +16,7 @@ release-please turns into the version bump and changelog entry.
 - [ ] `@ia-local/contracts` (`packages/contracts/`)
 - [ ] `@ia-local/sdk` (`sdk/`)
 - [ ] web (`web/`)
+- [ ] `@ia-local/git-assist` (`packages/git-assist/`)
 
 ## How it was tested
 

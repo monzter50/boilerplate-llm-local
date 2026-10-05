@@ -4,15 +4,13 @@
     "lib": ["ES2023"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": "dist",
+    "types": ["node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "sourceMap": true,
-    "declaration": false,
-    "customConditions": ["source"]
+    "noEmit": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  // Tests included, so `pnpm typecheck` checks them too.
+  "include": ["src/**/*.ts"]
 }

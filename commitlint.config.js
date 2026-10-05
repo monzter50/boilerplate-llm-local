@@ -24,7 +24,7 @@ export default {
     "scope-enum": [
       2,
       "always",
-      ["server", "sdk", "contracts", "web", "deps", "release"],
+      ["server", "sdk", "contracts", "web", "git-assist", "deps", "release"],
     ],
     // "feat: Add x" and "feat: add x" are both fine, as in the PR title check.
     "subject-case": [0],

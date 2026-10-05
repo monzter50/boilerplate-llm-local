@@ -1,6 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import readline from "node:readline/promises";
 import { promisify } from "node:util";
+import type { CheckDef } from "./config.js";
 import type { CheckResult } from "./conventional.js";
 
 const execFileAsync = promisify(execFile);
@@ -25,18 +26,32 @@ export function runAttached(command: string, args: string[]): Promise<number> {
   });
 }
 
-/** Runs one of the repo checks and summarizes the result in a line. */
+/**
+ * The test runner's own count, worth quoting in a PR: vitest and jest print
+ * "Tests  78 passed (78)" or "Tests  1 failed | 77 passed (78)". The last
+ * match is the result; npm echoes the script's command line first, and that
+ * line can contain the same words.
+ */
+export function testSummary(output: string): string {
+  const matches = output.match(/Tests:?\s+[^\n]*?\(\d+\)/g);
+  return matches?.at(-1)?.replace(/\s+/g, " ") ?? "";
+}
+
+/** Runs one of the repo's checks from its root and summarizes it in a line. */
 export async function runCheck(
-  name: string,
-  args: string[],
+  check: CheckDef,
+  cwd: string,
 ): Promise<CheckResult> {
+  const { name } = check;
+  const [command = "", ...args] = check.command;
   try {
-    const { stdout } = await execFileAsync("pnpm", args, {
+    const { stdout } = await execFileAsync(command, args, {
+      cwd,
       maxBuffer: 64 * 1024 * 1024,
+      // npm, pnpm and yarn are .cmd shims on Windows.
+      shell: process.platform === "win32",
     });
-    // vitest prints "Tests  78 passed (78)"; worth quoting in the PR.
-    const tests = /Tests\s+\d+ passed[^\n]*/.exec(stdout)?.[0];
-    return { name, ok: true, detail: tests?.replace(/\s+/g, " ") ?? "" };
+    return { name, ok: true, detail: testSummary(stdout) };
   } catch (error) {
     const output = String(
       (error as { stdout?: string }).stdout ?? (error as Error).message,

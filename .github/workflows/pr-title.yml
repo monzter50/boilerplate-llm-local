@@ -36,5 +36,6 @@ jobs:
             sdk
             contracts
             web
+            git-assist
             deps
             release

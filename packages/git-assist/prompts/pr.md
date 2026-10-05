@@ -13,7 +13,7 @@ BREAKING:
 Rules for TITLE:
 
 - type is one of: {{types}}
-- scope is optional; when given it is one of: {{scopes}}
+- scope is optional; when given it is {{scopes}}
 - Use the suggested scope from the request when there is one. Leave it out when
   the change spans several packages.
 - PRs are squash-merged, so the title becomes the single commit on main. Pick

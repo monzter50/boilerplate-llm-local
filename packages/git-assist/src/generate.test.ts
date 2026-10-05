@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ChatMessage } from "../../src/llm.js";
-import { cleanModelOutput, lintMessage } from "./conventional.js";
-import { generateValid, type Ask } from "./generate.js";
+import { cleanModelOutput, loadCommitRules } from "./conventional.js";
+import { generateValid } from "./generate.js";
+import type { Ask, Turn } from "./model.js";
+
+// This repo's commitlint.config.js, the rules a real run validates against.
+const rules = await loadCommitRules(process.cwd());
 
 /** An Ask that answers from a script, recording what it was sent. */
 function scripted(...answers: string[]) {
-  const calls: ChatMessage[][] = [];
-  const ask: Ask = vi.fn(async (turns: ChatMessage[]) => {
+  const calls: Turn[][] = [];
+  const ask: Ask = vi.fn(async (turns: Turn[]) => {
     calls.push(structuredClone(turns));
     return answers[calls.length - 1] ?? answers.at(-1) ?? "";
   });
@@ -18,7 +21,7 @@ const run = (ask: Ask, maxAttempts?: number) =>
     prompt: "Staged files: ...",
     ask,
     parse: cleanModelOutput,
-    validate: lintMessage,
+    validate: rules.lint,
     show: (m) => m,
     maxAttempts,
   });

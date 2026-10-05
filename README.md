@@ -36,6 +36,7 @@ pnpm web       # web chat on http://localhost:5173 (needs the API running)
 pnpm dev:all   # API and web chat together
 pnpm commit    # draft a commit message for staged changes with the local model
 pnpm pr        # draft, then push and open a PR for the current branch
+               # (git-assist: packages/git-assist, also usable in other repos)
 ```
 
 > `pnpm server` does **not** work: `server` is a built-in pnpm command that
@@ -332,6 +333,7 @@ src/
   server.ts            listen(), signal handling, graceful shutdown
   *.test.ts            vitest
 packages/contracts/    zod schemas and types of the HTTP API, shared by both sides
+packages/git-assist/   local-model commit/PR drafting CLI, usable in any repo
 sdk/src/
   index.ts             createClient(), ApiError, API types
   sse.ts               Server-Sent Events parser (EventSource cannot POST)

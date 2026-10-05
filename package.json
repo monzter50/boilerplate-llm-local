@@ -15,8 +15,8 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "cli": "tsx --conditions=source src/cli.ts",
-    "commit": "tsx --conditions=source scripts/git-assist/commit.ts",
-    "pr": "tsx --conditions=source scripts/git-assist/pr.ts",
+    "commit": "tsx --conditions=source packages/git-assist/src/cli.ts commit",
+    "pr": "tsx --conditions=source packages/git-assist/src/cli.ts pr",
     "dev": "tsx watch --conditions=source src/server.ts",
     "server": "tsx watch --conditions=source src/server.ts",
     "web": "pnpm --filter web dev",
@@ -31,7 +31,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:git-assist": "pnpm --filter @ia-local/git-assist build"
   },
   "dependencies": {
     "@aglaya/logger": "0.1.0",
@@ -45,8 +46,6 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
-    "@commitlint/lint": "21.2.3",
-    "@commitlint/load": "21.2.3",
     "@eslint/js": "^10.0.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",

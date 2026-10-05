@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true
+  },
+  // Tests must not be emitted into dist/, and they reach outside rootDir.
+  "exclude": ["src/**/*.test.ts"]
+}

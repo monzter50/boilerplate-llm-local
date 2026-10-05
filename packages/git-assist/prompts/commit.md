@@ -12,7 +12,7 @@ Format:
 Rules:
 
 - type is one of: {{types}}
-- scope is optional; when given it is one of: {{scopes}}
+- scope is optional; when given it is {{scopes}}
 - Use the suggested scope from the request when there is one. Leave the scope
   out when the change spans several packages.
 - Pick the type by what changes for users of the project:
@@ -21,13 +21,13 @@ Rules:
   test = tests only, build = dependencies or build tooling, ci = workflows,
   chore = anything else.
 - A change that breaks existing users gets "!" after the type or scope:
-  feat(contracts)!: rename modelInfo
+  feat!: rename the config option
 - The summary is imperative ("add", not "added"), has no trailing period, and
   the whole first line is at most 72 characters.
 - Describe the change itself. Do not mention that a model wrote the message.
 
 Example:
 
-fix(server): release the generation slot when the model cannot be resolved
+fix(api): release the connection when the request is cancelled
 
-The slot leaked when getModel() threw, so every later request got a 429.
+The connection stayed open after a cancel, so later requests queued behind it.
