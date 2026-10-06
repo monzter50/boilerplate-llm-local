@@ -15,6 +15,8 @@
   "packageManager": "pnpm@10.30.3",
   "scripts": {
     "cli": "tsx --conditions=source src/cli.ts",
+    "commit": "tsx --conditions=source packages/git-assist/src/cli.ts commit",
+    "pr": "tsx --conditions=source packages/git-assist/src/cli.ts pr",
     "dev": "tsx watch --conditions=source src/server.ts",
     "server": "tsx watch --conditions=source src/server.ts",
     "web": "pnpm --filter web dev",
@@ -29,7 +31,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:git-assist": "pnpm --filter @ia-local/git-assist build"
   },
   "dependencies": {
     "@aglaya/logger": "0.1.0",

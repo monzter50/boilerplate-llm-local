@@ -1,0 +1,36 @@
+{
+  "name": "@ia-local/git-assist",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Draft Conventional Commit messages and pull requests with a local LLM (LM Studio), in any git repository",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monzter50/boilerplate-llm-local.git",
+    "directory": "packages/git-assist"
+  },
+  "bin": {
+    "git-assist": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "prompts"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@commitlint/config-conventional": "21.2.3",
+    "@commitlint/lint": "21.2.3",
+    "@commitlint/load": "21.2.3",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1"
+  }
+}

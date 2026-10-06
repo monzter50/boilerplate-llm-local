@@ -71,8 +71,8 @@ and a check fails the PR when they don't:
 | `test`, `build`, `ci`, `chore`            | hidden                   | nothing                                |
 | `!` after the type, or `BREAKING CHANGE:` | Breaking changes         | major (minor while the version is 0.x) |
 
-The scope names the package: `server`, `sdk`, `contracts`, `web`, plus
-`deps` and `release`. It is optional, because which package a change belongs to
+The scope names the package: `server`, `sdk`, `contracts`, `web`,
+`git-assist`, plus `deps` and `release`. It is optional, because which package a change belongs to
 is decided by **the paths it touches**, not by the scope.
 
 Examples:
@@ -127,16 +127,35 @@ Keep a PR to one change. Two unrelated fixes are two PRs, and two changelog
 entries. Never edit versions or `CHANGELOG.md` files in a PR: release-please
 owns them.
 
+### Drafting with your local model
+
+`pnpm commit` and `pnpm pr` run [git-assist](packages/git-assist/README.md),
+which drafts commit messages and PRs with the model loaded in LM Studio.
+Nothing is committed, pushed or opened until you confirm, and the husky hooks
+still run.
+
+```bash
+git add -p
+pnpm commit              # draft → [y]es / [e]dit / [n]o → git commit
+pnpm pr --draft          # run checks → draft → confirm → push → gh pr create
+pnpm commit --dry-run    # only print the message (also: pnpm pr --dry-run)
+```
+
+Read the draft before confirming: an 8B model can invent details that are not
+in the diff. git-assist works in any repository, too: see its README for
+installing it globally and configuring it.
+
 ## Versions and releases
 
 Each package has its own version, tag and `CHANGELOG.md`:
 
-| Package               | Path                  | Tag                |
-| --------------------- | --------------------- | ------------------ |
-| `ia-local` (server)   | `.` (src/, prompts/…) | `server-v0.2.0`    |
-| `@ia-local/contracts` | `packages/contracts`  | `contracts-v0.2.0` |
-| `@ia-local/sdk`       | `sdk`                 | `sdk-v0.2.0`       |
-| `web`                 | `web`                 | `web-v0.2.0`       |
+| Package                | Path                  | Tag                 |
+| ---------------------- | --------------------- | ------------------- |
+| `ia-local` (server)    | `.` (src/, prompts/…) | `server-v0.2.0`     |
+| `@ia-local/contracts`  | `packages/contracts`  | `contracts-v0.2.0`  |
+| `@ia-local/sdk`        | `sdk`                 | `sdk-v0.2.0`        |
+| `web`                  | `web`                 | `web-v0.2.0`        |
+| `@ia-local/git-assist` | `packages/git-assist` | `git-assist-v0.2.0` |
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please):
 

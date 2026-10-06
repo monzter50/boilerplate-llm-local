@@ -16,8 +16,8 @@ of the release.
 
 - **Types:** `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`,
   `chore`, `revert`. Nothing else (`setup:`, `update:`, `wip:` are rejected).
-- **Scopes (optional):** `server`, `sdk`, `contracts`, `web`, `deps`,
-  `release`. Use the package the change touches; omit the scope when it spans
+- **Scopes (optional):** `server`, `sdk`, `contracts`, `web`, `git-assist`,
+  `deps`, `release`. Use the package the change touches; omit the scope when it spans
   several.
 - **Breaking change:** `!` after the type (`feat(contracts)!: …`) or a
   `BREAKING CHANGE:` footer.

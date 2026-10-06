@@ -9,6 +9,8 @@ export default defineConfig({
     include: [
       "src/**/*.test.ts",
       "sdk/src/**/*.test.ts",
+      "packages/git-assist/src/**/*.test.ts",
+      ".claude/hooks/**/*.test.mjs",
       // Plain-TS web modules only: no DOM, no "@/" alias.
       "web/src/lib/**/*.test.ts",
     ],

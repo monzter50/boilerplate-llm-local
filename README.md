@@ -12,6 +12,18 @@ And two clients sit on top of the API:
 - a **typed SDK** (`sdk/`, `@ia-local/sdk`) for any TypeScript app
 - a **web chat** (`web/`, React + shadcn/ui) built on that SDK
 
+## Packages
+
+Each package has its own version, changelog and documentation:
+
+| Package                                                 | What it is                                                   |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| server (this README)                                    | the HTTP API and terminal chat, in `src/`                    |
+| [`@ia-local/contracts`](packages/contracts/README.md)   | zod schemas of the API, shared by server and SDK             |
+| [`@ia-local/sdk`](sdk/README.md)                        | typed, dependency-free client for the API                    |
+| [`web`](web/README.md)                                  | the chat UI                                                  |
+| [`@ia-local/git-assist`](packages/git-assist/README.md) | drafts commits and PRs with a local model, in any repository |
+
 ## Requirements
 
 - Node.js 22+ and pnpm
@@ -34,6 +46,9 @@ pnpm cli       # terminal chat
 pnpm dev       # HTTP API on http://localhost:3000 (watch mode)
 pnpm web       # web chat on http://localhost:5173 (needs the API running)
 pnpm dev:all   # API and web chat together
+pnpm commit    # draft a commit message for staged changes with the local model
+pnpm pr        # draft, then push and open a PR for the current branch
+               # (git-assist: packages/git-assist, also usable in other repos)
 ```
 
 > `pnpm server` does **not** work: `server` is a built-in pnpm command that
@@ -330,6 +345,7 @@ src/
   server.ts            listen(), signal handling, graceful shutdown
   *.test.ts            vitest
 packages/contracts/    zod schemas and types of the HTTP API, shared by both sides
+packages/git-assist/   local-model commit/PR drafting CLI, usable in any repo
 sdk/src/
   index.ts             createClient(), ApiError, API types
   sse.ts               Server-Sent Events parser (EventSource cannot POST)

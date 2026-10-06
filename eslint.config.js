@@ -41,6 +41,26 @@ export default tseslint.config(
     },
   },
   {
+    // git-assist runs in other repositories, so it may not reach into this
+    // one: no imports from outside its own package (tests may use test/utils).
+    files: ["packages/git-assist/src/**/*.ts"],
+    ignores: ["packages/git-assist/src/**/*.test.ts"],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["../../*", "../../../*"],
+              message:
+                "git-assist must stay standalone: import nothing from the rest of this repo.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     ...reactHooks.configs.flat["recommended-latest"],
     files: ["web/**/*.{ts,tsx}"],
     languageOptions: { globals: globals.browser },

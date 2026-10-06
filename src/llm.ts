@@ -93,6 +93,8 @@ export type ChatOptions = {
   model?: string;
   /** Aborts the upstream request, so a client hanging up stops generation. */
   signal?: AbortSignal;
+  /** Overrides REQUEST_TIMEOUT_MS for this request, in milliseconds. */
+  timeout?: number;
 };
 
 export type ChatResult = {
@@ -135,7 +137,11 @@ export async function chat(
       max_tokens: params.maxTokens,
       stream: false,
     },
-    { signal: options.signal, maxRetries: GENERATION_RETRIES },
+    {
+      signal: options.signal,
+      maxRetries: GENERATION_RETRIES,
+      timeout: options.timeout,
+    },
   );
 
   const choice = completion.choices[0];
@@ -173,7 +179,11 @@ export async function* chatStream(
       max_tokens: params.maxTokens,
       stream: true,
     },
-    { signal: options.signal, maxRetries: GENERATION_RETRIES },
+    {
+      signal: options.signal,
+      maxRetries: GENERATION_RETRIES,
+      timeout: options.timeout,
+    },
   );
 
   // Inline <think> tags only matter when the server does not parse reasoning
