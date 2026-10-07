@@ -1,6 +1,6 @@
 {
   "name": "@ia-local/git-assist",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Draft Conventional Commit messages and pull requests with a local LLM (LM Studio), in any git repository",
